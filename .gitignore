@@ -4,3 +4,5 @@
 .Ruserdata
 analysis/1-bayes_cache*
 *.html
+
+*.rds

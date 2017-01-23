@@ -13,6 +13,7 @@ We'll create this folder in case it isn't already there.
 
 ``` r
 dir.create("figs", showWarnings = FALSE)
+dir.create("data/generated", showWarnings = FALSE)
 ```
 
 A custom theme for ggplot:
@@ -80,6 +81,7 @@ d_log <- select(d,
   ulva_grazing,
   dead_shoots,
   sh_mortality)
+saveRDS(d_log, file = "data/generated/data-clean.rds")
 ```
 
 Here I'm creating a data frame to merge in that describes the type of GLM to fit for each response variable:
@@ -139,6 +141,7 @@ fits <- plyr::dlply(d_long, "response", function(x) {
     prior_intercept = normal(0, 20),
     prior_aux = student_t(df = 3, 0, 3))
 })
+saveRDS(fits, file = "data/generated/stan-fits.rds")
 ```
 
 Let's check each of the models to make sure they converged:
@@ -197,7 +200,7 @@ g <- gather(s, parameter, sample, -response) %>%
     lwd = 0.4, col = "grey20")
 #> Joining, by = "response"
 g
-#> Warning: Removed 5559 rows containing non-finite values (stat_ydensity).
+#> Warning: Removed 5647 rows containing non-finite values (stat_ydensity).
 #> Warning: Removed 1 rows containing missing values (geom_point).
 ```
 
@@ -205,7 +208,7 @@ g
 
 ``` r
 ggsave("figs/gg-pars.pdf", width = 7, height = 4)
-#> Warning: Removed 5559 rows containing non-finite values (stat_ydensity).
+#> Warning: Removed 5647 rows containing non-finite values (stat_ydensity).
 
 #> Warning: Removed 1 rows containing missing values (geom_point).
 ```

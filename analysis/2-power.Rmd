@@ -1,0 +1,99 @@
+---
+output:
+  md_document:
+    variant: markdown_github
+---
+
+<!-- The .md filed is generated from the .Rmd. Please edit that file -->
+
+# Power analysis
+
+Power refers to the probability of correctly rejecting the null hypothesis when the alternative hypothesis (that the coefficient is not equal to 0) is true. I.e., it's the probability of detecting an effect when in fact there is an effect to detect.
+
+```{r, echo=FALSE}
+library(knitr)
+opts_knit$set(root.dir = "..") 
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r}
+library(tidyverse)
+```
+
+Let's read in the data:
+
+```{r}
+d <- readRDS("data/generated/data-clean.rds")
+d <- unique(select(d, ph_scaled, ph, nutrients))
+```
+
+Let's start by looking at reasonable values for parameters and residual standard deviation based on the model fits.
+
+```{r}
+fits <- readRDS("data/generated/stan-fits.rds")
+coefficients <- lapply(fits, broom::tidyMCMC, estimate.method = "median") %>%
+  plyr::ldply()
+coefficients <- mutate(coefficients, estimate = round(estimate, 2),
+  std.error = round(std.error, 2)) %>%
+  filter(term != "(Intercept)") %>% 
+  arrange(term)
+knitr::kable(coefficients)
+```
+
+The next few chunks include some functions to do the simulations for power analysis:
+
+```{r}
+generate_response <- function(sigma = 0.7, b0 = 2, b1 = -2, b2 = 0.5, b3 = 0.2, trans = exp) {
+  trans(rnorm(nrow(x), b0 + d$linear * b1 + d$quadratic * b2 + d$nutrients * b3, sd = sigma))
+}
+```
+
+```{r}
+x <- poly(d$ph_scaled, 2)
+d$linear <- x[,1]
+d$quadratic <- x[,2]
+
+fit_model <- function(sigma = 0.7, b0 = 2, b1 = -2, b2 = 0.5, b3 = 0.2, trans = exp,
+  formula = "log(response) ~ linear + quadratic + nutrients") {
+    
+  dd <- d
+  dd$response <- generate_response(sigma = sigma, b0 = b0, b1 = b1, b2 = b2, b3 = b3, trans = trans)
+  
+  m <- lm(as.formula(formula), data = dd)
+  b <- broom::tidy(m)
+  data.frame(term = b$term, p.value = b$p.value)
+}
+```
+
+```{r}
+power_analysis <- function(n, thresh = 0.05, sigma = 0.5, b0 = 0, b1 = -0.5, b2 = -0.5, b3 = 0.5, trans = exp, ...) {
+  out <- plyr::rdply(n, function(xx) 
+    fit_model(sigma = sigma, b0 = b0, b1 = b1, b2 = b2, b3 = b3, trans = trans, ...))
+  out %>% group_by(term) %>% 
+    summarize(prob_reject = round(sum(p.value < thresh) / n(), 2)) %>%
+    mutate(sigma = sigma, b0 = b0, b1 = b1, b2 = b2, b3 = b3)
+}
+```
+
+Now we can run our analysis for a given number of simulations, a given p-value threshold, a given amount of residual standard deviation noise, and given magnitudes of predictors:
+
+```{r}
+power_analysis(300, thresh = 0.05, sigma = 0.5, b0 = 0, b1 = -0.5, b2 = -0.5, b3 = 0.5, trans = exp)
+power_analysis(300, thresh = 0.05, sigma = 0.4, b0 = 2, b1 = -0.5, b2 = -0.5, b3 = 0, trans = exp)
+power_analysis(300, thresh = 0.05, sigma = 0.4, b0 = 2, b1 = -0.5, b2 = -0.5, b3 = 0, trans = exp,
+  formula = "log(response) ~ linear + quadratic")
+```
+
+Given that the sample size is fixed (the experiment is already done), it would seem that the main point of interest is if we can detect effects given a certain magnitude of an effect with a given amount of residual noise. 
+
+For example, given true coefficient values of magnitude 0.8, the following is the power across increasing magnitude of residual standard deviation noise:
+
+```{r}
+out <- plyr::ldply(seq(0.1, 1.5, length.out = 8), function(si) 
+  power_analysis(n = 300, sigma = si, b0 = 2, b1 = -0.8, b2 = -0.8, b3 = 0.8, trans = exp))
+filter(out, term %in% c("linear", "quadratic", "nutrients")) %>% 
+  ggplot(aes(sigma, prob_reject, colour = term)) + geom_line()
+```
