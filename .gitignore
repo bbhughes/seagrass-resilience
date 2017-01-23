@@ -2,6 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-analysis/1-bayes_*
+analysis/1-bayes_cache*
 *.html
 *.pdf
