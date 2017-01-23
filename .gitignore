@@ -1,0 +1,7 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+analysis/1-bayes_*
+*.html
+*.pdf
