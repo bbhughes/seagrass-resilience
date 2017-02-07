@@ -94,8 +94,9 @@ d2$nutrients <- as.numeric(as.factor(d2$nutrients)) - 1
 d3 <- d_mixed %>% select(tank, id, rep, ph1, nutrients1, 
   sh_grazing, ulva_grazing, diatom_grazing, epiphyte_grazing) %>%
   filter(nutrients1 != "")
-d3$ulva_grazing <- d3$ulva_grazing + 0.01 # TODO fix
-d3$epiphyte_grazing <- d3$epiphyte_grazing + 0.01 # TODO fix?
+d3$ulva_grazing <- d3$ulva_grazing + 0.1 # TODO fix
+d3$epiphyte_grazing <- d3$epiphyte_grazing + 0.1 # TODO fix?
+d3$sh_grazing <- d3$sh_grazing + 0.1 # TODO fix?
 d3 <- d3 %>% gather(response, value, -id, -rep, -nutrients1, -ph1, -tank)
 d3$nutrients1 <- as.numeric(as.factor(d3$nutrients1)) - 1
 d3 <- rename(d3, ph = ph1, nutrients = nutrients1) %>% 
@@ -337,7 +338,7 @@ And finally make the plot:
 ```{r, fig.width=8.5}
 cols <- c(brewer.pal(4, "Greys")[[3]], brewer.pal(4, "Blues")[[3]])
 g <- ggplot(d_long, aes(ph, value, colour = as.factor(nutrients))) + 
-  # geom_point() +
+  geom_point(alpha = 0.3) +
   facet_wrap(~response, scales = "free_y") +
   geom_line(data = pp, aes(ph, y = med), lwd = 1) +
   geom_ribbon(data = pp, aes(ph, ymax = u, ymin = l, fill = as.factor(nutrients)), 
