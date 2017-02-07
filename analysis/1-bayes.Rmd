@@ -84,6 +84,89 @@ d_log <- select(d,
   dead_shoots,
   sh_mortality)
 saveRDS(d_log, file = "data/generated/data-clean.rds")
+
+d_mixed <- read_csv("data/mesocosm_rawdata_R.csv", na = c("NA", "na"))
+names(d_mixed) <- tolower(names(d_mixed))
+d_mixed <- mutate(d_mixed, id = paste(paste(rep, ph, sep = "-"), nutrients, sep = "-"))
+d_mixed <- mutate(d_mixed, tank = paste(nutrients, ph, sep = "-"))
+
+d2 <- d_mixed %>% select(tank, id, rep, ph, nutrients, shoot_length, sht_g_dw, rhi_mass_g_dw) %>% 
+  gather(response, value, -id, -rep, -nutrients, -ph, -tank)
+d2$nutrients <- as.numeric(as.factor(d2$nutrients)) - 1
+
+ggplot(d2, aes(ph, log(value), colour = as.factor(nutrients))) + 
+  geom_point(position = position_jitter(width = 0.03), alpha = 0.5) +
+  facet_wrap(~response, scales = "free_y") +
+  theme_gg()
+
+options(mc.cores = parallel::detectCores())
+library(lme4)
+m <- lmer(log(value) ~ poly(ph, 2) + nutrients + (1|tank), 
+  data = filter(d2, response == "sht_g_dw"))
+summary(m)
+
+dat <- filter(d2, response == "sht_g_dw") %>% na.omit()
+m <- lm(log(value) ~ poly(ph, 2) + nutrients, data = dat)
+a <- broom::augment(m)
+a$tank <- dat$tank
+ggplot(a, aes(jitter(.fitted, 5), .resid, colour = tank)) + geom_point(alpha = 0.6) +
+  geom_smooth(colour = "black")
+arm::display(m)
+arm::coefplot(m)
+
+dat <- filter(d2, response == "shoot_length") %>% na.omit()
+m <- lm(log(value) ~ poly(ph, 2) + nutrients, data = dat)
+a <- broom::augment(m)
+a$tank <- dat$tank
+ggplot(a, aes(jitter(.fitted, 5), .resid, colour = tank)) + geom_point(alpha = 0.6) +
+  geom_smooth(colour = "black")
+arm::display(m)
+arm::coefplot(m)
+
+dat <- filter(d2, response == "rhi_mass_g_dw") %>% na.omit()
+m <- lm(log(value) ~ poly(ph, 2) + nutrients, data = dat)
+a <- broom::augment(m)
+a$tank <- dat$tank
+ggplot(a, aes(jitter(.fitted, 5), .resid, colour = tank)) + geom_point(alpha = 0.6) +
+  geom_smooth(colour = "black")
+arm::display(m)
+arm::coefplot(m)
+
+d2$ph_scaled <- arm::rescale(d2$ph)
+
+m2 <- stan_lmer(log(value) ~ poly(ph_scaled, 2) + nutrients + (1|tank),
+  data = filter(d2, response == "sht_g_dw"), iter = 400)
+summary(m2)
+# 
+plot(m2)
+
+
+m3 <- stan_glm(log(value) ~ poly(ph_scaled, 2) + nutrients,
+  data = filter(d2, response == "sht_g_dw"), iter = 400)
+summary(m3)
+plot(m3)
+
+m4 <- stan_glm(log(sht_g_dw_mean) ~ poly(ph_scaled, 2) + nutrients,
+  data = d_log, iter = 400)
+plot(m4)
+
+dat <- filter(d2, response == "sht_g_dw") %>% na.omit()
+dat$tank_id <-as.numeric(as.factor(dat$tank))
+library(rstan)
+options(mc.cores = parallel::detectCores())
+rstan_options(auto_write = TRUE)
+X <- group_by(dat, tank_id) %>% summarise(
+  ph_scaled = ph_scaled[[1]], nutrients = nutrients[[1]],
+  value = value[[1]])
+mm <- stan("analysis/repeated-measure.stan", 
+  data = list(
+    N = nrow(dat), 
+    K = 3, 
+    y = log(dat$value), 
+    X = model.matrix(log(value) ~ poly(ph_scaled, 2) + nutrients - 1 , data = X),
+    n_tank = max(dat$tank_id), 
+    tank = dat$tank_id), chains = 2, iter = 2000, control = list(adapt_delta = 0.95))
+mm
 ```
 
 Here I'm creating a data frame to merge in that describes the type of GLM to fit for each response variable:
