@@ -53,7 +53,11 @@ Let's read in the data and select only the columns we want to use:
 d <- read_csv("data/Mesocosm_ExperimentalData_R.csv", na = c("NA", "na"))
 d <- mutate(d, id = as.character(pH))
 names(d) <- tolower(names(d))
-d$ph_scaled <- arm::rescale(d$ph)
+sd_ph <- sd(d$ph)
+mean_ph <- mean(d$ph)
+scale_ph <- function(x) (x - mean_ph) / (2 * sd_ph)
+
+d$ph_scaled <- scale_ph(d$ph)
 d$nutrients_scaled <- arm::rescale(d$nutrients)
 d$nutrients <- as.numeric(as.factor(d$nutrients)) - 1
 d$ulva_grazing <- d$ulva_grazing + 0.01 # TODO fix
@@ -82,9 +86,20 @@ names(d_mixed) <- tolower(names(d_mixed))
 d_mixed <- mutate(d_mixed, id = paste(paste(rep, ph, sep = "-"), nutrients, sep = "-"))
 d_mixed <- mutate(d_mixed, tank = paste(nutrients, ph, sep = "-"))
 
-d2 <- d_mixed %>% select(tank, id, rep, ph, nutrients, shoot_length, sht_g_dw, rhi_mass_g_dw) %>% 
+d2 <- d_mixed %>% select(tank, id, rep, ph, nutrients, shoot_length, sht_g_dw, rhi_mass_g_dw,
+  rhi_elong_cm) %>% 
   gather(response, value, -id, -rep, -nutrients, -ph, -tank)
 d2$nutrients <- as.numeric(as.factor(d2$nutrients)) - 1
+
+d3 <- d_mixed %>% select(tank, id, rep, ph1, nutrients1, 
+  sh_grazing, ulva_grazing, diatom_grazing, epiphyte_grazing) %>%
+  filter(nutrients1 != "")
+d3$ulva_grazing <- d3$ulva_grazing + 0.01 # TODO fix
+d3$epiphyte_grazing <- d3$epiphyte_grazing + 0.01 # TODO fix?
+d3 <- d3 %>% gather(response, value, -id, -rep, -nutrients1, -ph1, -tank)
+d3$nutrients1 <- as.numeric(as.factor(d3$nutrients1)) - 1
+d3 <- rename(d3, ph = ph1, nutrients = nutrients1) %>% 
+  select(-tank, -id, -rep)
 
 ggplot(d2, aes(ph, log(value), colour = as.factor(nutrients))) + 
   geom_point(position = position_jitter(width = 0.03), alpha = 0.5) +
@@ -92,74 +107,53 @@ ggplot(d2, aes(ph, log(value), colour = as.factor(nutrients))) +
   theme_gg()
 
 options(mc.cores = parallel::detectCores())
-library(lme4)
-m <- lmer(log(value) ~ poly(ph, 2) + nutrients + (1|tank), 
-  data = filter(d2, response == "sht_g_dw"))
-summary(m)
 
-dat <- filter(d2, response == "sht_g_dw") %>% na.omit()
-m <- lm(log(value) ~ poly(ph, 2) + nutrients, data = dat)
-a <- broom::augment(m)
-a$tank <- dat$tank
-ggplot(a, aes(jitter(.fitted, 5), .resid, colour = tank)) + geom_point(alpha = 0.6) +
-  geom_smooth(colour = "black")
-arm::display(m)
-arm::coefplot(m)
+d2 <- mutate(d2, ph_scaled = scale_ph(ph))
+```
 
-dat <- filter(d2, response == "shoot_length") %>% na.omit()
-m <- lm(log(value) ~ poly(ph, 2) + nutrients, data = dat)
-a <- broom::augment(m)
-a$tank <- dat$tank
-ggplot(a, aes(jitter(.fitted, 5), .resid, colour = tank)) + geom_point(alpha = 0.6) +
-  geom_smooth(colour = "black")
-arm::display(m)
-arm::coefplot(m)
+It's probably best if we model this without any random intercepts by tanks. We don't have repeated observations at multiple tanks for a given treatment level. So, a lot of the systematic variation across treatment levels is likely to get absorbed into the spread of the random intercept deviations. 
 
-dat <- filter(d2, response == "rhi_mass_g_dw") %>% na.omit()
-m <- lm(log(value) ~ poly(ph, 2) + nutrients, data = dat)
-a <- broom::augment(m)
-a$tank <- dat$tank
-ggplot(a, aes(jitter(.fitted, 5), .resid, colour = tank)) + geom_point(alpha = 0.6) +
-  geom_smooth(colour = "black")
-arm::display(m)
-arm::coefplot(m)
-
-d2$ph_scaled <- arm::rescale(d2$ph)
-
+```{r}
 m2 <- stan_lmer(log(value) ~ poly(ph_scaled, 2) + nutrients + (1|tank),
   data = filter(d2, response == "sht_g_dw"), iter = 400)
-summary(m2)
-# 
 plot(m2)
-
 
 m3 <- stan_glm(log(value) ~ poly(ph_scaled, 2) + nutrients,
   data = filter(d2, response == "sht_g_dw"), iter = 400)
-summary(m3)
 plot(m3)
 
 m4 <- stan_glm(log(sht_g_dw_mean) ~ poly(ph_scaled, 2) + nutrients,
   data = d_log, iter = 400)
 plot(m4)
 
-dat <- filter(d2, response == "sht_g_dw") %>% na.omit()
-dat$tank_id <-as.numeric(as.factor(dat$tank))
-library(rstan)
-options(mc.cores = parallel::detectCores())
-rstan_options(auto_write = TRUE)
-X <- group_by(dat, tank_id) %>% summarise(
-  ph_scaled = ph_scaled[[1]], nutrients = nutrients[[1]],
-  value = value[[1]])
-mm <- stan("analysis/repeated-measure.stan", 
-  data = list(
-    N = nrow(dat), 
-    K = 3, 
-    y = log(dat$value), 
-    X = model.matrix(log(value) ~ poly(ph_scaled, 2) + nutrients - 1 , data = X),
-    n_tank = max(dat$tank_id), 
-    tank = dat$tank_id), chains = 2, iter = 2000, control = list(adapt_delta = 0.95))
-mm
+############
+
+m2 <- stan_lmer(log(value) ~ poly(ph_scaled, 2) + nutrients + (1|tank),
+  data = filter(d2, response == "rhi_mass_g_dw"), iter = 400)
+plot(m2)
+
+m3 <- stan_glm(log(value) ~ poly(ph_scaled, 2) + nutrients,
+  data = filter(d2, response == "rhi_mass_g_dw"), iter = 400)
+plot(m3)
+
+m4 <- stan_glm(log(rhi_mass_g_dw_mean) ~ poly(ph_scaled, 2) + nutrients,
+  data = d_log, iter = 400)
+plot(m4)
+
+############
+
+m2 <- stan_lmer(log(value) ~ poly(ph_scaled, 2) + nutrients + (1|tank),
+  data = filter(d2, response == "shoot_length"), iter = 400)
+plot(m2)
+
+m3 <- stan_glm(log(value) ~ poly(ph_scaled, 2) + nutrients,
+  data = filter(d2, response == "shoot_length"), iter = 400)
+plot(m3)
 ```
+
+So there are some minor differences. Adding the random intercept for tank does result in much wider confidence intervals on the slopes of interest. There isn't a large difference between using the group-level means versus using all of the data. Let's use all of the data. By not having a random intercept for each tank we are assuming that there isn't tank-level random variation. In other words, there aren't conditions other than the pH and nutrients that are different between the tanks. 
+
+OK, onto the main analysis. 
 
 Here I'm creating a data frame to merge in that describes the type of GLM to fit for each response variable:
 
@@ -175,15 +169,27 @@ dt <- tribble(
   "dead_shoots",              FALSE,           "count",     "log",
   "epiphyte_cm_shoot",        TRUE,            "gaussian",  "identity",
   "ido_mortality",            TRUE,            "gaussian",  "identity",
-  "rhi_elong_cm",             TRUE,            "gaussian",  "identity",
-  "rhi_mass_g_dw_mean",       TRUE,            "gaussian",  "identity",
-  "rhi_mass_g_dw_mean",       TRUE,            "gaussian",  "identity",
+# "rhi_elong_cm",             TRUE,            "gaussian",  "identity",
+# "rhi_mass_g_dw_mean",       TRUE,            "gaussian",  "identity",
+  "shoot_length",             TRUE,            "gaussian",  "identity",
+  "rhi_mass_g_dw",            TRUE,            "gaussian",  "identity",
   "sh_grazing",               TRUE,            "gaussian",  "identity",
   "sh_mortality",             FALSE,           "count",     "log",
-  "sht_g_dw_mean",            TRUE,            "gaussian",  "identity",
-  "ulva_grazing",             TRUE,            "gaussian",  "identity")
+  "sht_g_dw",                 TRUE,            "gaussian",  "identity",
+# "sht_g_dw_mean",            TRUE,            "gaussian",  "identity",
+# "ulva_grazing",             TRUE,            "gaussian",  "identity", # TODO do not include because "epiphyte" was simply Ulva + diatom?
+  "epiphyte_grazing",         TRUE,            "gaussian",  "identity")
 
 d_long <- gather(d_log, response, value, -ph_scaled, -nutrients, -ph)
+# I will remove these rows and add in the newer data that Brent sent me:
+d_long <- filter(d_long, !response %in% c("epiphyte_grazing", "diatom_grazing", "sh_grazing"))
+d3 <- filter(d3, !response %in% c("ulva_grazing"))
+d3$ph_scaled <- scale_ph(d3$ph)
+d_long <- rbind(d_long, d3)
+
+# join in the raw data with multiple values per tank:
+d_long <- rbind(d_long, select(d2, ph, ph_scaled, nutrients, response, value))
+
 d_long <- inner_join(d_long, dt) %>% na.omit() %>% as_data_frame()
 ```
 
@@ -199,6 +205,7 @@ ggplot(d_long, aes(ph_scaled, value, colour = as.factor(nutrients))) +
 Now we can iterate through the various response variables and fit a Bayesian GLM to each. For now, I am log transforming some of the response variables and fitting a linear regression, to others I am fitting a linear regression to the raw data (the change response variables), and I am fitting negative binomial GLMs to the count response variables.
 
 ```{r, message=FALSE, results='hide', cache=TRUE}
+options(mc.cores = 1L)
 fits <- plyr::dlply(d_long, "response", function(x) {
   if (x$log_transform[1])
     f <- log(value) ~ poly(ph_scaled, 2) + nutrients
@@ -330,7 +337,7 @@ And finally make the plot:
 ```{r, fig.width=8.5}
 cols <- c(brewer.pal(4, "Greys")[[3]], brewer.pal(4, "Blues")[[3]])
 g <- ggplot(d_long, aes(ph, value, colour = as.factor(nutrients))) + 
-  geom_point() +
+  # geom_point() +
   facet_wrap(~response, scales = "free_y") +
   geom_line(data = pp, aes(ph, y = med), lwd = 1) +
   geom_ribbon(data = pp, aes(ph, ymax = u, ymin = l, fill = as.factor(nutrients)), 
