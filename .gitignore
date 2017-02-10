@@ -6,3 +6,5 @@ analysis/1-bayes_cache*
 *.html
 
 *.rds
+analysis/1-bayes_f*
+analysis/2-power_files*
