@@ -8,3 +8,6 @@ analysis/1-bayes_cache*
 *.rds
 analysis/1-bayes_f*
 analysis/2-power_files*
+analysis/2-power_cac*
+
+*.rda

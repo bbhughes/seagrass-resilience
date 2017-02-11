@@ -9,6 +9,22 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
 )
+theme_gg <- function(base_size = 11, base_family = "") {
+  theme_light() +
+    theme(
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      strip.background = element_rect(fill = NA, colour = NA),
+      strip.text.x = element_text(colour = "grey10"),
+      axis.text = element_text(colour = "grey30"),
+      axis.title = element_text(colour = "grey30"),
+      legend.title = element_text(colour = "grey30", size = rel(0.9)),
+      panel.border = element_rect(fill = NA, colour = "grey70", size = 1),
+      legend.key.size = unit(0.8, "lines"),
+      legend.text = element_text(size = rel(0.7), colour = "grey30"),
+      legend.key = element_rect(colour = NA)
+    )
+}
 ```
 
 ```{r}
@@ -44,17 +60,43 @@ Let's start by looking at reasonable values for parameters and residual standard
 fits <- readRDS("data/generated/stan-fits.rds")
 coefficients <- lapply(fits, broom::tidyMCMC, estimate.method = "median") %>%
   plyr::ldply()
-coefficients <- mutate(coefficients, estimate = round(estimate, 2),
-  std.error = round(std.error, 2)) %>%
-  filter(term != "(Intercept)") %>% 
-  arrange(term)
+load(file = "data/meta.rda")
+coefficients <- mutate(coefficients, estimate = round(estimate, 3),
+  std.error = round(std.error, 3)) %>%
+  rename(response = .id) %>% 
+  filter(term != "(Intercept)")
+coefficients <- inner_join(coefficients, meta)
+coefficients <- filter(coefficients, log_transform == TRUE) %>% 
+  mutate(multiplicative_estimate = round(exp(estimate), 1), estimate = round(estimate, 3),
+    lower = round(exp(estimate - 2*std.error), 1), upper = round(exp(estimate + 2*std.error), 1)) %>% 
+  select(-std.error, -log_transform, -family) %>%
+  arrange(term, multiplicative_estimate)
+coefficients$multiplicative_estimate[coefficients$term == "sigma"] <- NA
+coefficients$lower[coefficients$term == "sigma"] <- NA
+coefficients$upper[coefficients$term == "sigma"] <- NA
+coefficients <- coefficients %>% mutate(estimate = round(estimate, 1))
 knitr::kable(coefficients)
+
+knitr::kable(filter(coefficients, term == "ph_scaled"))
 ```
+
+OK, so if we look at the linear effects, `ph_scaled`, the effects are as large as approximately a 3 fold reduction (~30% of initial value) with an increase of 2 standard deviations of pH units, which is approximately equal to 0.6 pH units with this data set.
+
+From some of the above papers, we could easily expect this, and in fact expect even stronger effects. Some of those papers saw 2-3 effects on similar response variables with a change in pH of 0.3 units.
+
+For nutrients, the effects range from 0.8 up to a approximately 2-fold increase. 
+
+In terms of residual standard deviation, 
+
+```{r}
+knitr::kable(filter(coefficients, term == "sigma"))
+```
+
+We are looking at anywhere from 0.1 up to a bit above 1.
 
 The next few chunks include some functions to do the simulations for power analysis:
 
 ```{r}
-# x <- poly(d$ph_scaled, 2)
 d$linear <- d$ph_scaled
 d$quadratic <- d$ph_scaled2
 generate_response <- function(sigma = 0.7, b0 = 2, b1 = -2, b2 = 0.5, b3 = 0.2, trans = exp) {
@@ -82,14 +124,14 @@ power_analysis <- function(n, thresh = 0.05, sigma = 0.5, b0 = 0, b1 = -0.5, b2 
   out <- plyr::rdply(n, function(xx) 
     fit_model(sigma = sigma, b0 = b0, b1 = b1, b2 = b2, b3 = b3, trans = trans, ...))
   out %>% group_by(term) %>% 
-    summarize(prob_reject = round(sum(p.value < thresh) / n(), 2)) %>%
+    summarize(prob_reject = round(sum(p.value < thresh) / n(), 3)) %>%
     mutate(sigma = sigma, b0 = b0, b1 = b1, b2 = b2, b3 = b3)
 }
 ```
 
-Now we can run our analysis for a given number of simulations, a given p-value threshold, a given amount of residual standard deviation noise, and given magnitudes of predictors:
+Now we can run our analysis for a given number of simulations, a given p-value threshold, a given amount of residual standard deviation noise, and given magnitudes of predictors. The intercept value does not matter.
 
-```{r}
+```{r, cache=TRUE}
 power_analysis(300, thresh = 0.05, sigma = 0.5, b0 = 0, b1 = -0.5, b2 = -0.5, b3 = 0.5, trans = exp)
 power_analysis(300, thresh = 0.05, sigma = 0.4, b0 = 2, b1 = -0.5, b2 = -0.5, b3 = 0, trans = exp)
 power_analysis(300, thresh = 0.05, sigma = 0.4, b0 = 2, b1 = -0.5, b2 = -0.5, b3 = 0, trans = exp,
@@ -98,29 +140,9 @@ power_analysis(300, thresh = 0.05, sigma = 0.4, b0 = 2, b1 = -0.5, b2 = -0.5, b3
 
 Given that the sample size is fixed (the experiment is already done), it would seem that the main point of interest is if we can detect effects given a certain magnitude of an effect with a given amount of residual noise. 
 
-For example, given true coefficient values of magnitude 0.8, the following is the power across increasing magnitude of residual standard deviation noise:
+I will explore power across a range of multiplicative effect sizes and residual standard deviation. For example, a multiplicative effect of 0.3 it means that the response variable is reduced to 30% of what it was after an increase of pH by 0.6 units. The same power calculations should correspond to the same magnitude of the fact but as an increase. For example, 0.5 should be equivalent to 2.
 
-```{r}
-theme_gg <- function(base_size = 11, base_family = "") {
-  theme_light() +
-    theme(
-      panel.grid.major = element_blank(),
-      panel.grid.minor = element_blank(),
-      strip.background = element_rect(fill = NA, colour = NA),
-      strip.text.x = element_text(colour = "grey10"),
-      axis.text = element_text(colour = "grey30"),
-      axis.title = element_text(colour = "grey30"),
-      legend.title = element_text(colour = "grey30", size = rel(0.9)),
-      panel.border = element_rect(fill = NA, colour = "grey70", size = 1),
-      legend.key.size = unit(0.8, "lines"),
-      legend.text = element_text(size = rel(0.7), colour = "grey30"),
-      legend.key = element_rect(colour = NA)
-    )
-}
-```
-
-
-```{r}
+```{r, cache=TRUE}
 xx <- expand.grid(
   sigma = seq(0.1, 1, length.out = 12), 
   b1 = log(seq(0.1, 0.8, 0.2)))
@@ -132,10 +154,7 @@ out <- plyr::mdply(xx, power_analysis,
   n = 4000L, b0 = 1, trans = exp, .parallel = TRUE)
 
 filter(out, term %in% c("linear")) %>% 
-# filter(out, term %in% c("linear", "quadratic", "nutrients")) %>% 
-  # ggplot(aes(sigma, prob_reject, colour = term)) + geom_line() +
   ggplot(aes(sigma, prob_reject, colour = exp(b1), group = as.factor(b1))) + geom_line(lwd = 0.9) +
-  # facet_wrap(~)) +
   theme_gg() +
   ylab("Power") +
   xlab("Residual standard deviation") +
@@ -144,3 +163,6 @@ filter(out, term %in% c("linear")) %>%
   ylim(0, 1)
 ggsave("figs/power.pdf", width = 6,height = 3.5)
 ```
+
+You can look along the x axis for a given residual standard deviation and a line of a given color to figure out the power of correctly rejecting the null hypothesis for a given "linear" (multiplicative) effect on a response variable (power). The same power calculations work for the other coefficients, although it's hard to figure out appropriate effect sizes beyond our own calculations from the literature for the nutrient or quadratic effects.
+
