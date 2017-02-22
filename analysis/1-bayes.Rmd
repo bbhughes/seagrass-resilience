@@ -42,203 +42,125 @@ theme_gg <- function(base_size = 11, base_family = "") {
       panel.border = element_rect(fill = NA, colour = "grey70", size = 1),
       legend.key.size = unit(0.8, "lines"),
       legend.text = element_text(size = rel(0.7), colour = "grey30"),
-      legend.key = element_rect(colour = NA)
+      legend.key = element_rect(colour = NA, fill = NA),
+      legend.background = element_rect(fill = NA)
     )
 }
 ```
 
-Let's read in the data and select only the columns we want to use:
+Let's read in the data:
 
 ```{r}
-d <- read_csv("data/Mesocosm_ExperimentalData_R.csv", na = c("NA", "na"))
-d <- mutate(d, id = as.character(pH))
-names(d) <- tolower(names(d))
-sd_ph <- sd(d$ph)
-mean_ph <- mean(d$ph)
+d1 <- read_csv("data/mesocosm_data_1.csv", na = c("NA", "na"))
+d2 <- read_csv("data/mesocosm_data_2.csv", na = c("NA", "na"))
+d3 <- read_csv("data/mesocosm_data_3.csv", na = c("NA", "na"))
+labels <- read_csv("data/mesocosm_figure_labels.csv") %>% 
+  rename(response = label_data, label = label_pub, 
+    figure_panel = order, notes = Notes) %>% 
+  select(-notes)
+names(d1) <- tolower(names(d1))
+names(d2) <- tolower(names(d2))
+names(d3) <- tolower(names(d3))
+
+sd_ph <- sd(d3$ph)
+mean_ph <- mean(d3$ph)
 scale_ph <- function(x) (x - mean_ph) / (2 * sd_ph)
 
-d$ph_scaled <- scale_ph(d$ph)
-d$ph_scaled2 <- d$ph_scaled^2
-sd_ph2 <- sd(d$ph_scaled2)
-scale_ph2 <- function(x) x / (2 * sd_ph2)
-d$ph_scaled2 <- scale_ph2(d$ph_scaled^2)
-d$nutrients_scaled <- arm::rescale(d$nutrients)
-d$nutrients <- as.numeric(as.factor(d$nutrients)) - 1
-d$ulva_grazing <- d$ulva_grazing + 0.1 # TODO fix
+d1 <- d1 %>% select(-rep) %>% 
+  gather(response, value, -ph, -nutrients)
+d2 <- d2 %>% 
+  gather(response, value, -ph, -nutrients)
+d3 <- d3 %>% select(-barrel) %>% 
+  gather(response, value, -ph, -nutrients)
 
-d_log <- select(d, 
-  ph,
-  ph_scaled,
-  ph_scaled2,
-  nutrients,
-  epiphyte_cm_shoot,
-  algal_mass_g_dw,
-  rhi_mass_g_dw_mean,
-  change_idotea_mass_g_fw,
-  change_seahare_mass_g_fw,
-  sht_g_dw_mean,
-  rhi_mass_g_dw_mean,
-  rhi_elong_cm,
-  ido_mortality,
-  sh_grazing,
-  ulva_grazing,
-  dead_shoots,
-  sh_mortality)
-saveRDS(d_log, file = "data/generated/data-clean.rds")
+d <- bind_rows(d1, d2) %>% bind_rows(d3)
+d <- mutate(d, nutrients_text = nutrients,
+  nutrients = as.numeric(as.factor(nutrients)) - 1)
+assert_that(identical(unique(d$nutrients), c(0, 1)))
 
-d_mixed <- read_csv("data/mesocosm_rawdata_R.csv", na = c("NA", "na"))
-names(d_mixed) <- tolower(names(d_mixed))
-d_mixed <- mutate(d_mixed, id = paste(paste(rep, ph, sep = "-"), nutrients, sep = "-"))
-d_mixed <- mutate(d_mixed, tank = paste(nutrients, ph, sep = "-"))
+d <- left_join(d, labels)
+assert_that(all(!is.na(d$label)))
+```
 
-d2 <- d_mixed %>% select(tank, id, rep, ph, nutrients, shoot_length, sht_g_dw, rhi_mass_g_dw,
-  rhi_elong_cm) %>% 
-  gather(response, value, -id, -rep, -nutrients, -ph, -tank)
-d2$nutrients <- as.numeric(as.factor(d2$nutrients)) - 1
+We need to subtract 20 from each shoot elongation response:
 
-d3 <- d_mixed %>% select(tank, id, rep, ph1, nutrients1, 
-  sh_grazing, ulva_grazing, diatom_grazing, epiphyte_grazing) %>%
-  filter(nutrients1 != "")
-d3$ulva_grazing <- d3$ulva_grazing + 0.1 # TODO fix
-d3$epiphyte_grazing <- d3$epiphyte_grazing + 0.1 # TODO fix?
-d3$sh_grazing <- d3$sh_grazing + 0.1 # TODO fix?
-d3 <- d3 %>% gather(response, value, -id, -rep, -nutrients1, -ph1, -tank)
-d3$nutrients1 <- as.numeric(as.factor(d3$nutrients1)) - 1
-d3 <- rename(d3, ph = ph1, nutrients = nutrients1) %>% 
-  select(-tank, -id, -rep)
+```{r}
+d$value[d$response == "shoot_length"] <- d$value[d$response == "shoot_length"] - 20
+d <- filter(d, !is.na(value))
+```
 
-ggplot(d2, aes(ph, log(value), colour = as.factor(nutrients))) + 
+TODO: `ulva_grazing` is zero for all cases of no nutrients
+```{r}
+ggplot(d, aes(ph, value, colour = nutrients_text)) + 
   geom_point(position = position_jitter(width = 0.03), alpha = 0.5) +
   facet_wrap(~response, scales = "free_y") +
   theme_gg()
-
-options(mc.cores = parallel::detectCores())
-
-d2 <- mutate(d2, ph_scaled = scale_ph(ph))
-d2 <- mutate(d2, ph_scaled2 = scale_ph2(ph_scaled^2))
 ```
 
-It's probably best if we model this without any random intercepts by tanks. We don't have repeated observations at multiple tanks for a given treatment level. So, a lot of the systematic variation across treatment levels is likely to get absorbed into the spread of the random intercept deviations. 
+```{r, eval=FALSE, echo=FALSE}
+all_whole_numbers <- function(x) {
+  identical(x, round(x))
+}
 
-```{r, eval=FALSE}
-m2 <- stan_lmer(log(value) ~ poly(ph_scaled, 2) + nutrients + (1|tank),
-  data = filter(d2, response == "sht_g_dw"), iter = 400)
-plot(m2)
+group_by(d, response) %>% 
+  summarize(minimum_value = min(value), counts = all_whole_numbers(value)) %>% 
+  filter(minimum_value == 0, !counts)
 
-m3 <- stan_glm(log(value) ~ poly(ph_scaled, 2) + nutrients,
-  data = filter(d2, response == "sht_g_dw"), iter = 400)
-plot(m3)
+group_by(d, response) %>% 
+  summarize(minimum_value = min(value), counts = all_whole_numbers(value)) %>% 
+  filter(counts)
 
-m4 <- stan_glm(log(sht_g_dw_mean) ~ poly(ph_scaled, 2) + nutrients,
-  data = d_log, iter = 400)
-plot(m4)
-
-############
-
-m2 <- stan_lmer(log(value) ~ poly(ph_scaled, 2) + nutrients + (1|tank),
-  data = filter(d2, response == "rhi_mass_g_dw"), iter = 400)
-plot(m2)
-
-m3 <- stan_glm(log(value) ~ poly(ph_scaled, 2) + nutrients,
-  data = filter(d2, response == "rhi_mass_g_dw"), iter = 400)
-plot(m3)
-
-m4 <- stan_glm(log(rhi_mass_g_dw_mean) ~ poly(ph_scaled, 2) + nutrients,
-  data = d_log, iter = 400)
-plot(m4)
-
-############
-
-m2 <- stan_lmer(log(value) ~ poly(ph_scaled, 2) + nutrients + (1|tank),
-  data = filter(d2, response == "shoot_length"), iter = 400)
-plot(m2)
-
-m3 <- stan_glm(log(value) ~ poly(ph_scaled, 2) + nutrients,
-  data = filter(d2, response == "shoot_length"), iter = 400)
-plot(m3)
+group_by(d, response) %>% 
+  summarize(minimum_value = min(value), counts = all_whole_numbers(value)) %>% 
+  filter(minimum_value < 0)
 ```
-
-So there are some minor differences. Adding the random intercept for tank does result in much wider confidence intervals on the slopes of interest. There isn't a large difference between using the group-level means versus using all of the data. Let's use all of the data. By not having a random intercept for each tank we are assuming that there isn't tank-level random variation. In other words, there aren't conditions other than the pH and nutrients that are different between the tanks. 
-
-OK, onto the main analysis. 
 
 Here I'm creating a data frame to merge in that describes the type of GLM to fit for each response variable:
 
 ```{r}
-# TODO use link:
+# link not used!
 dt <- tribble(
   ~response,                  ~log_transform,  ~family,     ~link,
-  "ph_scaled",                NA,              "gaussian",  "identity",
-  "nutrients",                NA,              "gaussian",  "identity",
   "algal_mass_g_dw",          TRUE,            "gaussian",  "identity",
   "change_idotea_mass_g_fw",  FALSE,           "gaussian",  "identity",
+  "change_plant_mass_g_fw",   FALSE,           "gaussian",  "identity",
   "change_seahare_mass_g_fw", FALSE,           "gaussian",  "identity",
   "dead_shoots",              FALSE,           "count",     "log",
+  "diatom_grazing",           TRUE,            "gaussian",  "identity",
   "epiphyte_cm_shoot",        TRUE,            "gaussian",  "identity",
-  "ido_mortality",            TRUE,            "gaussian",  "identity",
-# "rhi_elong_cm",             TRUE,            "gaussian",  "identity",
-# "rhi_mass_g_dw_mean",       TRUE,            "gaussian",  "identity",
-  "shoot_length",             TRUE,            "gaussian",  "identity",
+  "ido_mortality",            FALSE,           "count",     "log",
+  "rhi_elong_cm",             FALSE,           "gaussian",  "identity",
   "rhi_mass_g_dw",            TRUE,            "gaussian",  "identity",
   "sh_grazing",               TRUE,            "gaussian",  "identity",
   "sh_mortality",             FALSE,           "count",     "log",
+  "shoot_length",             FALSE,           "gaussian",  "identity",
   "sht_g_dw",                 TRUE,            "gaussian",  "identity",
-# "sht_g_dw_mean",            TRUE,            "gaussian",  "identity",
-# "ulva_grazing",             TRUE,            "gaussian",  "identity", # TODO do not include because "epiphyte" was simply Ulva + diatom?
-  "epiphyte_grazing",         TRUE,            "gaussian",  "identity")
+  "ulva_grazing",             TRUE,            "gaussian",  "identity")
 
-d_long <- gather(d_log, response, value, -ph_scaled, -ph_scaled2, -nutrients, -ph)
-# I will remove these rows and add in the newer data that Brent sent me:
-d_long <- filter(d_long, !response %in% c("epiphyte_grazing", "diatom_grazing", "sh_grazing"))
-d3 <- filter(d3, !response %in% c("ulva_grazing"))
-d3$ph_scaled <- scale_ph(d3$ph)
-d3$ph_scaled2 <- scale_ph(d3$ph_scaled^2)
-d_long <- bind_rows(d_long, d3)
 
-# join in the raw data with multiple values per tank:
-d_long <- bind_rows(d_long, select(d2, ph, ph_scaled, ph_scaled2, nutrients, response, value))
-
-d_long <- inner_join(d_long, dt) %>% na.omit() %>% as_data_frame()
-
-## Condense these to tank-level means? 
-# d_long <- d_long %>% group_by(response, nutrients, ph) %>% 
-#   summarise(ph_scaled = ph_scaled[1], ph_scaled2 = ph_scaled2[1],
-#     value = mean(value), log_transform = log_transform[1],
-#     family = family[1], link = link[1]) %>% 
-#   ungroup()
-
+d_long <- left_join(d, dt)
 meta <- unique(select(d_long, response, log_transform, family))
 save(meta, file = "data/meta.rda")
 ```
 
-That got really confusing. So let's rescale the data here to make sure it is correct. 
+Let's work with orthogonal polynomials:
 
 ```{r}
-(sd_ph <- sd(d_long$ph))
-(mean_ph <- mean(d_long$ph))
-d_long$ph_scaled2 <- d_long$ph_scaled^2
-(sd_ph2 <- sd(d_long$ph_scaled2))
-d_long$ph_scaled <- scale_ph(d_long$ph)
-d_long$ph_scaled2 <- scale_ph2(d_long$ph_scaled2)
-assert_that(round(sd(d_long$ph_scaled2), 2) == 0.5)
-assert_that(round(sd(d_long$ph_scaled), 2) == 0.5)
-assert_that(round(sd(d_long$nutrients), 2) == 0.5)
-```
-
-Actually, maybe it is cleaner to work directly with the orthogonal polynomials:
-
-```{r}
+d_long$ph_scaled <- d$ph
 d_long <- d_long %>% group_by(response) %>%
   mutate(
-    ph_scaled = poly(ph_scaled, 2)[,1],
-    ph_scaled2 = poly(ph_scaled, 2)[,2]) %>%
+    ph_scaled = poly(ph, 2)[,1],
+    ph_scaled2 = poly(ph, 2)[,2]) %>%
   ungroup()
+
+d_long <- group_by(d_long, response) %>% 
+  mutate(value = ifelse(min(value) == 0 & log_transform, value + 0.1, value))
 ```
 
 Let's plot the data that we will fit models to:
 
 ```{r, fig.width=8.5}
-ggplot(d_long, aes(ph_scaled, value, colour = as.factor(nutrients))) + 
+ggplot(d_long, aes(ph_scaled, value, colour = nutrients_text)) + 
   geom_point() +
   facet_wrap(~response, scales = "free_y") +
   theme_gg()
@@ -249,6 +171,7 @@ Now we can iterate through the various response variables and fit a Bayesian GLM
 ```{r, message=FALSE, results='hide', cache=FALSE}
 options(mc.cores = 1L)
 fits <- plyr::dlply(d_long, "response", function(x) {
+  print(unique(x$response))
   if (x$log_transform[1]) {
     f <- log(value) ~ ph_scaled + ph_scaled2 + nutrients
   } else
@@ -256,14 +179,14 @@ fits <- plyr::dlply(d_long, "response", function(x) {
   
   if (x$family[1] == "gaussian")
     fam <- gaussian(link = "identity")
-  if (x$family[1] == "gamma")
-    fam <- gaussian(link = "identity")
+#  if (x$family[1] == "gamma")
+#    fam <- gaussian(link = "identity")
     # fam <- Gamma(link = "log")
   if (x$family[1] == "count")
     fam <- neg_binomial_2(link = "log")
   
   stan_glm(f, data = x, iter = 2000, chains = 4, family = fam,
-    prior = normal(0, 2),
+    prior = normal(0, 1),
     prior_intercept = normal(0, 10),
     prior_aux = student_t(df = 3, 0, 2))
 })
@@ -286,7 +209,6 @@ s <- plyr::ldply(fits, function(x) {
   mm <- as.matrix(x)
   as_data_frame(mm[, 2:4])
 }) %>% as_data_frame() %>%
-  # rename(linear = `poly(ph_scaled, 2)1`, quadratic = `poly(ph_scaled, 2)2`)
   rename(linear = `ph_scaled`, quadratic = `ph_scaled2`)
 ```
 
@@ -299,31 +221,39 @@ cis <- gather(s, parameter, value, -response) %>%
     m = quantile(value, 0.5),
     u = quantile(value, 0.975)) %>% 
   ungroup() %>% 
-  mutate(parameter = factor(parameter, levels = c("linear", "quadratic", "nutrients")))
+  mutate(parameter = factor(parameter, levels = c("linear", "quadratic", "nutrients"))) %>% 
+  left_join(labels)
 ```
 
 Now let's plot the coefficients with the credible intervals overlaid:
 
 ```{r, fig.height=4, fig.width=6.5}
-lims <- c(-3.2, 3.2)
+lims <- c(-5, 5)
 cis$l[cis$l < lims[1]] <- lims[1]
 cis$u[cis$u > lims[2]] <- lims[2]
+cis <- mutate(cis, parameter = factor(parameter, levels = c("linear", "quadratic", "nutrients"),
+    labels = c("Linear", "Quadratic", "Nutrients")))
+cis <- mutate(cis, label_ordered = reorder(label, -as.numeric(as.factor(figure_panel))))
+
 cols <- rep(brewer.pal(4, "Blues")[[2]], 2)
 g <- gather(s, parameter, sample, -response) %>%
-  inner_join(unique(select(d_long, response, log_transform, family))) %>%
-  mutate(multiplicative = ifelse(log_transform | family == "count", TRUE, FALSE)) %>%
-  mutate(parameter = factor(parameter, levels = c("linear", "quadratic", "nutrients"))) %>%
-  ggplot(aes(response, sample)) + 
+  inner_join(unique(select(d_long, response, log_transform, family, label, figure_panel))) %>%
+  # mutate(multiplicative = ifelse(log_transform | family == "count", TRUE, FALSE)) %>%
+  mutate(parameter = factor(parameter, levels = c("linear", "quadratic", "nutrients"),
+    labels = c("Linear", "Quadratic", "Nutrients"))) %>%
+  mutate(label_ordered = reorder(label, -as.numeric(as.factor(figure_panel)))) %>% 
+  ggplot(aes(x = label_ordered, sample)) + 
   geom_hline(yintercept = 0, lty = 2, col = "grey60") +
   geom_violin(fill = cols[1], col = cols[2], adjust = 1.2) +
   coord_flip() +
   facet_wrap(~parameter, scales = "free_x") +
   ylim(lims) +
   theme_gg() +
-  ylab("Coefficient (per 2 SD)") + xlab("") +
-  geom_point(data = cis, aes(x = response, y = m), col = "grey20", cex = 0.9) +
-  geom_segment(data = cis, aes(x = response, y = l, xend = response, yend = u), 
-    lwd = 0.4, col = "grey20")
+  ylab("Coefficient") + xlab("") +
+  geom_point(data = cis, aes(x = label_ordered, y = m), col = "grey20", cex = 0.9) +
+  geom_segment(data = cis, aes(x = label_ordered, y = l, xend = label, yend = u),
+    lwd = 0.4, col = "grey20") +
+  geom_vline(xintercept = c(4.5, 8.5, 12.5), col = "grey50", lty = 2)
 g
 ggsave("figs/gg-pars.pdf", width = 7, height = 4)
 ```
@@ -331,25 +261,14 @@ ggsave("figs/gg-pars.pdf", width = 7, height = 4)
 Next we will plot the model fits on top of the data. First we will need to create a data set with smaller increments on the predictors so that the plots are smooth:
 
 ```{r}
-# TODO:
-# newdata <- expand.grid(ph_scaled = seq(min(d$ph_scaled), max(d$ph_scaled), length.out = 200), 
-#   nutrients = c(0, 1))
-# newdata <- data.frame(newdata, linear = poly(newdata$ph_scaled, 2)[,1], 
-# quad = poly(newdata$ph_scaled, 2)[,2], ph = newdata$ph_scaled * 2 * sd(d$ph) + mean(d$ph))
-
-newdata <- unique(select(d_long, response, ph_scaled, ph_scaled2, ph, nutrients))
-
-newdata <- data.frame(newdata, linear = newdata$ph_scaled, quad = newdata$ph_scaled2)
-
-N <- 100
-newdata <- group_by(newdata, response, nutrients) %>%
-  arrange(ph) %>%
+N <- 200
+newdata <- group_by(d_long, response) %>%
   do({
-    data.frame(ph_scaled = spline(.$ph_scaled, n = N)$y,
-      ph = spline(.$ph, n = N)$y,
-      linear = spline(.$linear, n = N)$y,
-      quad = spline(.$quad, n = N)$y) # TODO use spline approx?
+    data.frame(ph_scaled = predict(poly(.$ph, 2), seq(min(.$ph), max(.$ph), length.out = N))[,1],
+      ph = seq(min(.$ph), max(.$ph), length.out = N),
+      ph_scaled2 = predict(poly(.$ph, 2), seq(min(.$ph), max(.$ph), length.out = N))[,2])
   })
+newdata <- bind_rows(data.frame(newdata, nutrients = 0), data.frame(newdata, nutrients = 1))
 ```
 
 Now make the predictions:
@@ -365,12 +284,12 @@ Now make the predictions:
 #     b2 = `ph_scaled2`)
 #   newdata_this_response <- as.data.frame(filter(newdata, response == names(fits)[[ii]]))
 #   pp <- apply(newdata_this_response, 1, function(y) {
-#     b$b0 + b$b1 * as.numeric(y[["linear"]]) +
-#       b$b2 * as.numeric(y[["quad"]]) +
+#     b$b0 + b$b1 * as.numeric(y[["ph_scaled"]]) +
+#       b$b2 * as.numeric(y[["ph_scaled2"]]) +
 #       b$nutrients * as.numeric(y[["nutrients"]])
 #   })
-#   l <- apply(pp, 2, quantile, probs = 0.05)
-#   u <- apply(pp, 2, quantile, probs = 0.95)
+#   l <- apply(pp, 2, quantile, probs = 0.1)
+#   u <- apply(pp, 2, quantile, probs = 0.9)
 #   med <- apply(pp, 2, quantile, probs = 0.5)
 #   data.frame(l, med, u, newdata_this_response)
 # }) %>% as_data_frame()
@@ -379,19 +298,19 @@ ii <<- 0
 p <- plyr::ldply(fits, function(x) {
   ii <<- ii + 1
   newdata_this_response <- as.data.frame(filter(newdata, response == names(fits)[[ii]]))
-  newdata_this_response$ph_scaled2 <- newdata_this_response$quad
   pp <- predict(x, newdata = newdata_this_response, se.fit = TRUE)
-  l <- pp$fit - qnorm(.9) * pp$se.fit
-  u <- pp$fit + qnorm(.9) * pp$se.fit
+  l <- pp$fit - qnorm(.975) * pp$se.fit
+  u <- pp$fit + qnorm(.975) * pp$se.fit
   med <- pp$fit
   data.frame(l, med, u, newdata_this_response)
 }) %>% as_data_frame()
 
 pp <- inner_join(p, unique(select(d_long, response, log_transform, family)))
-pp <- pp %>% group_by(response) %>% 
-  mutate(med = ifelse(log_transform | family == "count", exp(med), med)) %>% 
-  mutate(l = ifelse(log_transform | family == "count", exp(l), l)) %>% 
-  mutate(u = ifelse(log_transform | family == "count", exp(u), u))
+pp <- pp %>% group_by(response) %>%
+  mutate(med = ifelse(log_transform | family == "count", exp(med), med)) %>%
+  mutate(l = ifelse(log_transform | family == "count", exp(l), l)) %>%
+  mutate(u = ifelse(log_transform | family == "count", exp(u), u)) %>%
+  left_join(labels)
 ```
 
 And finally make the plot:
@@ -402,12 +321,13 @@ d_long_plot <- d_long %>% group_by(response, nutrients, ph) %>%
     value = ifelse(log_transform[1], exp(mean(log(value))), mean(value)), 
     log_transform = log_transform[1],
     family = family[1], link = link[1]) %>%
-  ungroup()
+  ungroup() %>% 
+  left_join(labels)
 
 cols <- c(brewer.pal(4, "Greys")[[3]], brewer.pal(4, "Blues")[[3]])
 g <- ggplot(d_long_plot, aes(ph, value, colour = as.factor(nutrients))) + 
   geom_point(alpha = 0.3) +
-  facet_wrap(~response, scales = "free_y") +
+  facet_wrap(~label, scales = "free_y") +
   geom_line(data = pp, aes(ph, y = med), lwd = 1) +
   geom_ribbon(data = pp, aes(ph, ymax = u, ymin = l, fill = as.factor(nutrients)), 
     alpha = 0.15, inherit.aes = FALSE) +
@@ -417,3 +337,40 @@ g <- ggplot(d_long_plot, aes(ph, value, colour = as.factor(nutrients))) +
 g
 ggsave("figs/gg-fits.pdf", width = 10, height = 6)
 ```
+
+# Separate figures for groups of responses 
+
+```{r}
+pp <- mutate(pp, nutrients_text = ifelse(nutrients == 0, "No Nutrients", "Nutrients added"))
+d_long_plot <- mutate(d_long_plot, nutrients_text = ifelse(nutrients == 0, "No Nutrients", "Nutrients added"))
+
+pp$label_wrap = stringr::str_wrap(pp$label, width = 30)
+d_long_plot$label_wrap = stringr::str_wrap(d_long_plot$label, width = 30)
+
+cols <- c(brewer.pal(4, "Greys")[[3]], brewer.pal(4, "Blues")[[3]])
+plot_predictions <- function(figure_id, legend_position = c(.89, .93)) {
+  dat <- filter(d_long_plot, substr(figure_panel, 0, 1) == figure_id)
+  point_data <-filter(pp, substr(figure_panel, 0, 1) == figure_id)
+  g <- ggplot(dat, aes_string("ph", "value", colour = "nutrients_text")) + 
+  geom_point(alpha = 0.3) +
+  facet_wrap(~label_wrap, scales = "free_y") +
+  geom_line(data = point_data, aes_string("ph", y = "med"), lwd = 1) +
+  geom_ribbon(data = point_data, aes_string("ph", ymax = "u", ymin = "l", fill = "nutrients_text"), 
+    alpha = 0.15, inherit.aes = FALSE) +
+  theme_gg() +
+  labs(colour = "Nutrients", fill = "Nutrients", y = "Response value", x = "pH") +
+  scale_color_manual(values = cols) + scale_fill_manual(values = cols) +
+  theme(legend.position = legend_position) +
+  labs(color = "", fill = "")
+  g
+}
+plot_predictions("2", legend_position = c(.1, .86))
+ggsave("figs/fig-2.pdf", width = 7.2, height = 2.8)
+plot_predictions("3")
+ggsave("figs/fig-3.pdf", width = 6, height = 5.5)
+plot_predictions("4")
+ggsave("figs/fig-4.pdf", width = 6, height = 5.5)
+plot_predictions("S")
+ggsave("figs/fig-S1.pdf", width = 6, height = 5.5)
+```
+
