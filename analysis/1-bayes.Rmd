@@ -17,6 +17,7 @@ library(tidyverse)
 library(rstanarm)
 library(RColorBrewer)
 library(assertthat)
+library(ggsidekick) # devtools::install_github("seananderson/ggsidekick")
 ```
 
 We'll create this folder in case it isn't already there. 
@@ -24,30 +25,6 @@ We'll create this folder in case it isn't already there.
 ```{r}
 dir.create("figs", showWarnings = FALSE)
 dir.create("data/generated", showWarnings = FALSE)
-```
-
-A custom theme for ggplot:
-
-```{r}
-theme_gg <- function(base_size = 11, base_family = "") {
-  half_line <- base_size/2
-  theme_light() +
-    theme(
-      panel.grid.major = element_blank(),
-      panel.grid.minor = element_blank(),
-      axis.ticks.length = grid::unit(half_line/2.2, "pt"),
-      strip.background = element_rect(fill = NA, colour = NA),
-      strip.text.x = element_text(colour = "grey20"),
-      axis.text = element_text(colour = "grey30"),
-      axis.title = element_text(colour = "grey30"),
-      legend.title = element_text(colour = "grey30", size = rel(0.9)),
-      panel.border = element_rect(fill = NA, colour = "grey70", size = 1),
-      legend.key.size = unit(0.8, "lines"),
-      legend.text = element_text(size = rel(0.7), colour = "grey30"),
-      legend.key = element_rect(colour = NA, fill = NA),
-      legend.background = element_rect(fill = NA)
-    )
-}
 ```
 
 Let's read in the data:
@@ -197,7 +174,7 @@ Let's plot the data that we will fit models to:
 ggplot(d_long, aes(ph_scaled, value, colour = nutrients_text)) + 
   geom_point() +
   facet_wrap(~response, scales = "free_y") +
-  theme_gg()
+  theme_sleek()
 ```
 
 Now we can iterate through the various response variables and fit a Bayesian GLM to each. For now, I am log transforming some of the response variables and fitting a linear regression, to others I am fitting a linear regression to the raw data (the change response variables), and I am fitting negative binomial GLMs to the count response variables.
@@ -300,7 +277,7 @@ g <- gather(s, parameter, sample, -response) %>%
   coord_flip() +
   facet_wrap(~parameter, scales = "free_x") +
   ylim(lims) +
-  theme_gg() +
+  theme_sleek() +
   ylab("Coefficient") + xlab("") +
   geom_point(data = cis, aes(x = label_ordered, y = m), col = "grey20", cex = 0.9) +
   geom_segment(data = cis, aes(x = label_ordered, y = l, xend = label_ordered, yend = u),
@@ -385,7 +362,7 @@ g <- ggplot(d_long_plot, aes(ph, value, colour = as.factor(nutrients))) +
   geom_line(data = pp, aes(ph, y = med), lwd = 1) +
   geom_ribbon(data = pp, aes(ph, ymax = u, ymin = l, fill = as.factor(nutrients)), 
     alpha = 0.15, inherit.aes = FALSE) +
-  theme_gg() +
+  theme_sleek() +
   labs(colour = "Nutrients", fill = "Nutrients", y = "Response value", x = "pH") +
   scale_color_manual(values = cols) + scale_fill_manual(values = cols)
 g
@@ -435,7 +412,7 @@ plot_predictions <- function(figure_id, legend_position = c(.85, .96)) {
     geom_ribbon(data = pp_data, aes_string("ph", ymax = "u", ymin = "l", 
       fill = "nutrients_text"), 
       alpha = 0.15, inherit.aes = FALSE) +
-    theme_gg() +
+    theme_sleek() +
     labs(colour = "Nutrients", fill = "Nutrients", y = "Response value", x = "pH") +
     scale_color_manual(values = cols) + scale_fill_manual(values = cols) +
     theme(legend.position = legend_position) +
