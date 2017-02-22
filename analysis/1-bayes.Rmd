@@ -147,6 +147,36 @@ meta <- unique(select(d_long, response, log_transform, family))
 save(meta, file = "data/meta.rda")
 ```
 
+Let's print a table that can be used in the paper to describe the models:
+
+```{r}
+.simpleCap <- function(x) {
+    s <- strsplit(x, " ")[[1]]
+    paste(toupper(substring(s, 1, 1)), substring(s, 2),
+          sep = "", collapse = " ")
+}
+
+cap_vec <- function(x) {
+    map_chr(x, .simpleCap)
+}
+
+model_table <- inner_join(dt, labels) %>% select(-response) %>% 
+  mutate(figure_panel = toupper(figure_panel)) %>% 
+  mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
+  mutate(label = sub(" $", "", label)) %>% 
+  mutate(label = sub("\\\\n", "", label)) %>% 
+  mutate(family = sub("count", "Negative binomial", family)) %>% 
+  mutate(family = cap_vec(family)) %>%
+  mutate(link = cap_vec(link)) %>%
+  arrange(figure_panel) %>%
+  select(figure_panel, label, log_transform, family, link)
+
+names(model_table) <- cap_vec(names(model_table))
+names(model_table) <- sub("_", " ", names(model_table))
+
+knitr::kable(model_table)
+```
+
 Let's work with orthogonal polynomials:
 
 ```{r}
@@ -240,7 +270,7 @@ cis <- gather(s, parameter, value, -response) %>%
 Now let's plot the coefficients with the credible intervals overlaid:
 
 ```{r, fig.height=4, fig.width=6.5}
-lims <- c(-6, 6)
+lims <- c(-5.8, 5.8)
 cis$l[cis$l < lims[1]] <- lims[1]
 cis$u[cis$u > lims[2]] <- lims[2]
 cis <- mutate(cis, parameter = factor(parameter, levels = c("linear", "quadratic", "nutrients"),
