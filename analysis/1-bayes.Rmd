@@ -90,6 +90,7 @@ d <- filter(d, !is.na(value))
 ```
 
 TODO: `ulva_grazing` is zero for all cases of no nutrients
+
 ```{r}
 ggplot(d, aes(ph, value, colour = nutrients_text)) + 
   geom_point(position = position_jitter(width = 0.03), alpha = 0.5) +
@@ -228,20 +229,28 @@ cis <- gather(s, parameter, value, -response) %>%
 Now let's plot the coefficients with the credible intervals overlaid:
 
 ```{r, fig.height=4, fig.width=6.5}
-lims <- c(-5, 5)
+lims <- c(-6.5, 6.5)
 cis$l[cis$l < lims[1]] <- lims[1]
 cis$u[cis$u > lims[2]] <- lims[2]
 cis <- mutate(cis, parameter = factor(parameter, levels = c("linear", "quadratic", "nutrients"),
     labels = c("Linear", "Quadratic", "Nutrients")))
-cis <- mutate(cis, label_ordered = reorder(label, -as.numeric(as.factor(figure_panel))))
+cis$label <- sub("\\([a-zA-Z0-9 /%]*\\)", "", cis$label)
+cis$label <- sub(" $", "", cis$label)
+cis <- mutate(cis, label_ordered = paste(label, toupper(figure_panel), sep = " - "))
+cis <- mutate(cis, label_ordered = reorder(label_ordered, -as.numeric(as.factor(figure_panel))))
+```
 
+```{r}
 cols <- rep(brewer.pal(4, "Blues")[[2]], 2)
 g <- gather(s, parameter, sample, -response) %>%
   inner_join(unique(select(d_long, response, log_transform, family, label, figure_panel))) %>%
   # mutate(multiplicative = ifelse(log_transform | family == "count", TRUE, FALSE)) %>%
   mutate(parameter = factor(parameter, levels = c("linear", "quadratic", "nutrients"),
     labels = c("Linear", "Quadratic", "Nutrients"))) %>%
-  mutate(label_ordered = reorder(label, -as.numeric(as.factor(figure_panel)))) %>% 
+  mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
+  mutate(label = sub(" $", "", label)) %>% 
+  mutate(label_ordered = paste(label, toupper(figure_panel), sep = " - ")) %>% 
+  mutate(label_ordered = reorder(label_ordered, -as.numeric(as.factor(figure_panel)))) %>% 
   ggplot(aes(x = label_ordered, sample)) + 
   geom_hline(yintercept = 0, lty = 2, col = "grey60") +
   geom_violin(fill = cols[1], col = cols[2], adjust = 1.2) +
@@ -251,9 +260,9 @@ g <- gather(s, parameter, sample, -response) %>%
   theme_gg() +
   ylab("Coefficient") + xlab("") +
   geom_point(data = cis, aes(x = label_ordered, y = m), col = "grey20", cex = 0.9) +
-  geom_segment(data = cis, aes(x = label_ordered, y = l, xend = label, yend = u),
+  geom_segment(data = cis, aes(x = label_ordered, y = l, xend = label_ordered, yend = u),
     lwd = 0.4, col = "grey20") +
-  geom_vline(xintercept = c(4.5, 8.5, 12.5), col = "grey50", lty = 2)
+  geom_vline(xintercept = c(4.5, 8.5, 12.5), col = "grey60", lty = 3)
 g
 ggsave("figs/gg-pars.pdf", width = 7, height = 4)
 ```
@@ -299,8 +308,8 @@ p <- plyr::ldply(fits, function(x) {
   ii <<- ii + 1
   newdata_this_response <- as.data.frame(filter(newdata, response == names(fits)[[ii]]))
   pp <- predict(x, newdata = newdata_this_response, se.fit = TRUE)
-  l <- pp$fit - qnorm(.975) * pp$se.fit
-  u <- pp$fit + qnorm(.975) * pp$se.fit
+  l <- pp$fit - qnorm(.95) * pp$se.fit
+  u <- pp$fit + qnorm(.95) * pp$se.fit # 90% CI
   med <- pp$fit
   data.frame(l, med, u, newdata_this_response)
 }) %>% as_data_frame()
@@ -318,11 +327,13 @@ And finally make the plot:
 ```{r, fig.width=8.5}
 d_long_plot <- d_long %>% group_by(response, nutrients, ph) %>%
   summarise(ph_scaled = ph_scaled[1], ph_scaled2 = ph_scaled2[1],
-    value = ifelse(log_transform[1], exp(mean(log(value))), mean(value)), 
+    value = ifelse(log_transform[1], exp(mean(log(value))), mean(value)),
     log_transform = log_transform[1],
     family = family[1], link = link[1]) %>%
-  ungroup() %>% 
+  ungroup() %>%
   left_join(labels)
+
+# d_long_plot <- d_long
 
 cols <- c(brewer.pal(4, "Greys")[[3]], brewer.pal(4, "Blues")[[3]])
 g <- ggplot(d_long_plot, aes(ph, value, colour = as.factor(nutrients))) + 
@@ -347,24 +358,40 @@ d_long_plot <- mutate(d_long_plot, nutrients_text = ifelse(nutrients == 0, "No N
 pp$label_wrap = stringr::str_wrap(pp$label, width = 30)
 d_long_plot$label_wrap = stringr::str_wrap(d_long_plot$label, width = 30)
 
+pp <- mutate(pp, 
+  label_ordered = reorder(label_wrap, as.numeric(as.factor(figure_panel))))
+d_long_plot <- mutate(d_long_plot, 
+  label_ordered = reorder(label_wrap, as.numeric(as.factor(figure_panel))))
+
 cols <- c(brewer.pal(4, "Greys")[[3]], brewer.pal(4, "Blues")[[3]])
-plot_predictions <- function(figure_id, legend_position = c(.89, .93)) {
+plot_predictions <- function(figure_id, legend_position = c(.89, .96)) {
   dat <- filter(d_long_plot, substr(figure_panel, 0, 1) == figure_id)
-  point_data <-filter(pp, substr(figure_panel, 0, 1) == figure_id)
+  pp_data <-filter(pp, substr(figure_panel, 0, 1) == figure_id)
+  
+  max_ci <- group_by(pp, response) %>% 
+    summarize(max_ci = max(u))
+    
+  let <- dat %>% left_join(max_ci) %>% 
+    group_by(response) %>%
+    summarize(label_ordered = label_ordered[1], x = min(ph), y = max(c(value, max_ci))) %>% 
+    arrange(label_ordered) %>%
+    mutate(panel = LETTERS[1:n()])
+  
   g <- ggplot(dat, aes_string("ph", "value", colour = "nutrients_text")) + 
   geom_point(alpha = 0.3) +
-  facet_wrap(~label_wrap, scales = "free_y") +
-  geom_line(data = point_data, aes_string("ph", y = "med"), lwd = 1) +
-  geom_ribbon(data = point_data, aes_string("ph", ymax = "u", ymin = "l", fill = "nutrients_text"), 
+  facet_wrap(~label_ordered, scales = "free_y") +
+  geom_line(data = pp_data, aes_string("ph", y = "med"), lwd = 1) +
+  geom_ribbon(data = pp_data, aes_string("ph", ymax = "u", ymin = "l", fill = "nutrients_text"), 
     alpha = 0.15, inherit.aes = FALSE) +
   theme_gg() +
   labs(colour = "Nutrients", fill = "Nutrients", y = "Response value", x = "pH") +
   scale_color_manual(values = cols) + scale_fill_manual(values = cols) +
   theme(legend.position = legend_position) +
-  labs(color = "", fill = "")
+  labs(color = "", fill = "") +
+    geom_text(data = let, aes(x = x, y = y, label = panel), inherit.aes = FALSE)
   g
 }
-plot_predictions("2", legend_position = c(.1, .86))
+plot_predictions("2", legend_position = c(.8, .86))
 ggsave("figs/fig-2.pdf", width = 7.2, height = 2.8)
 plot_predictions("3")
 ggsave("figs/fig-3.pdf", width = 6, height = 5.5)
