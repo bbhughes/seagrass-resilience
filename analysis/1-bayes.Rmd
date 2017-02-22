@@ -88,6 +88,8 @@ We need to subtract 20 from each shoot elongation response:
 
 ```{r}
 d$value[d$response == "shoot_length"] <- d$value[d$response == "shoot_length"] - 20
+d$value[d$response == "change_plant_mass_g_fw"] <- d$value[d$response == "change_plant_mass_g_fw"]/10
+d$value[d$response == "shoot_length"] <- d$value[d$response == "shoot_length"]/10
 d <- filter(d, !is.na(value))
 ```
 
@@ -96,8 +98,7 @@ TODO: `ulva_grazing` is zero for all cases of no nutrients
 ```{r}
 ggplot(d, aes(ph, value, colour = nutrients_text)) + 
   geom_point(position = position_jitter(width = 0.03), alpha = 0.5) +
-  facet_wrap(~response, scales = "free_y") +
-  theme_gg()
+  facet_wrap(~response, scales = "free_y")
 ```
 
 ```{r, eval=FALSE, echo=FALSE}
@@ -180,18 +181,22 @@ fits <- plyr::dlply(d_long, "response", function(x) {
   } else
     f <- value ~ ph_scaled + ph_scaled2 + nutrients
   
-  if (x$family[1] == "gaussian")
+  if (x$family[1] == "gaussian") {
     fam <- gaussian(link = "identity")
+    prior_aux <- student_t(df = 3, 0, 5)
+  }
 #  if (x$family[1] == "gamma")
 #    fam <- gaussian(link = "identity")
     # fam <- Gamma(link = "log")
-  if (x$family[1] == "count")
+  if (x$family[1] == "count") {
     fam <- neg_binomial_2(link = "log")
+    prior_aux <- student_t(df = 3, 0, 20)
+  }
   
   stan_glm(f, data = x, iter = 2000, chains = 4, family = fam,
     prior = normal(0, 1),
     prior_intercept = normal(0, 10),
-    prior_aux = student_t(df = 3, 0, 2))
+    prior_aux = prior_aux)
 })
 saveRDS(fits, file = "data/generated/stan-fits.rds")
 ```
@@ -215,6 +220,10 @@ s <- plyr::ldply(fits, function(x) {
   rename(linear = `ph_scaled`, quadratic = `ph_scaled2`)
 ```
 
+```{r}
+fits
+```
+
 Here I will calculate credible intervals to plot:
 
 ```{r}
@@ -231,7 +240,7 @@ cis <- gather(s, parameter, value, -response) %>%
 Now let's plot the coefficients with the credible intervals overlaid:
 
 ```{r, fig.height=4, fig.width=6.5}
-lims <- c(-6.5, 6.5)
+lims <- c(-6, 6)
 cis$l[cis$l < lims[1]] <- lims[1]
 cis$u[cis$u > lims[2]] <- lims[2]
 cis <- mutate(cis, parameter = factor(parameter, levels = c("linear", "quadratic", "nutrients"),
