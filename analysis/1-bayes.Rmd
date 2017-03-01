@@ -287,6 +287,23 @@ g
 ggsave("figs/gg-pars.pdf", width = 7, height = 4)
 ```
 
+What about quantifying the probability density above and below zero for each of these variables?
+
+```{r}
+gather(s, coefficient, value, -response) %>%
+  group_by(response, coefficient) %>% 
+  summarize(p_less_0 = round(sum(value < 0)/n(), 2), p_above_0 = round(1 - p_less_0, 2)) %>%
+  left_join(labels) %>% 
+  mutate(figure_number = substr(figure_panel, 0, 1)) %>%
+  arrange(figure_number, coefficient, figure_panel) %>% 
+  ungroup() %>%
+  mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
+  mutate(label = sub(" $", "", label)) %>% 
+  mutate(label = sub("\\\\n", "", label)) %>% 
+  select(figure_panel, label, coefficient, p_less_0, p_above_0) %>%
+  knitr::kable()
+```
+
 Next we will plot the model fits on top of the data. First we will need to create a data set with smaller increments on the predictors so that the plots are smooth:
 
 ```{r}
