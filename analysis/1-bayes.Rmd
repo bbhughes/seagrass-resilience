@@ -280,7 +280,7 @@ cis <- mutate(cis, label_ordered = reorder(label_ordered, -as.numeric(as.factor(
 ```
 
 ```{r}
-cols <- rep(brewer.pal(6, "Blues")[[3]], 2)
+cols <- brewer.pal(6, "Blues")
 # cols <- rep("grey75", 2)
 g <- gather(s, parameter, sample, -response) %>%
   inner_join(unique(select(d_long, response, log_transform, family, label, figure_panel))) %>%
@@ -294,7 +294,8 @@ g <- gather(s, parameter, sample, -response) %>%
   mutate(label_ordered = reorder(label_ordered, -as.numeric(as.factor(figure_panel)))) %>% 
   ggplot(aes(x = label_ordered, sample)) + 
   geom_hline(yintercept = 0, lty = 2, col = "grey60") +
-  geom_violin(fill = cols[1], col = NA, adjust = 1.2) +
+  geom_violin(fill = paste0(cols[3]), col = NA, adjust = 1.2, 
+    lwd = 0.1) +
   coord_flip() +
   facet_wrap(~parameter, scales = "free_x") +
   ylim(lims) +
@@ -302,7 +303,7 @@ g <- gather(s, parameter, sample, -response) %>%
   ylab("Coefficient") + xlab("") +
   geom_point(data = cis, aes(x = label_ordered, y = m), col = "grey30", cex = 0.5) +
   geom_segment(data = cis, aes(x = label_ordered, y = l, xend = label_ordered, yend = u),
-    lwd = 0.3, col = "grey30") +
+    lwd = 0.4, col = "grey30") +
   geom_vline(xintercept = c(4.5, 7.5, 11.5, 13.5), col = "grey60", lty = 3)
 g
 ggsave("figs/gg-pars.pdf", width = 7, height = 4)
@@ -446,7 +447,7 @@ plot_predictions <- function(figure_id, legend_position = c(.85, .96),
       range = diff(range(c(value, max_ci, min_ci))), 
       y = max(c(value, max_ci)) - range * 0.04) %>% 
     arrange(label_ordered) %>%
-    mutate(panel = LETTERS[1:n()])
+    mutate(panel = letters[1:n()])
   
   g <- ggplot(dat, aes_string("ph", "value", colour = "nutrients_text")) + 
     geom_point(alpha = 0.45, aes(shape = nutrients_text)) +
@@ -501,12 +502,12 @@ plot_predictions <- function(figure_id, legend_position = c(.85, .96),
     g
 }
 plot_predictions("2", legend_position = c(.87, .23))
-ggsave("figs/fig-2.pdf", width = 4.5, height = 2.3)
-plot_predictions("3", legend_position = c(.87, .9))
+ggsave("figs/fig-2.pdf", width = 4.5, height = 2.1)
+plot_predictions("3", legend_position = c(.83, .9))
 ggsave("figs/fig-3.pdf", width = 4.5, height = 2.3)
-plot_predictions("4")
+plot_predictions("4", legend_position = c(.15, .1))
 ggsave("figs/fig-4.pdf", width = 4.5, height = 3.8)
-plot_predictions("5")
+plot_predictions("5", legend_position = c(.87, .9))
 ggsave("figs/fig-5.pdf", width = 6.9, height = 2.3)
 plot_predictions("S", whole_numbers = TRUE)
 ggsave("figs/fig-S1.pdf", width = 4.5, height = 3.8)
