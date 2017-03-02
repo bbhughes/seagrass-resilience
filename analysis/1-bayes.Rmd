@@ -300,13 +300,17 @@ g <- gather(s, parameter, sample, -response) %>%
   facet_wrap(~parameter, scales = "free_x") +
   ylim(lims) +
   theme_sleek() +
-  ylab("Coefficient") + xlab("") +
+  ylab("Coefficient") + xlab("Other        Grazing trials   Eelgrass  Algal  Grazer") +
+#   "Grazer response", 3A and B would be "Algal response", 4A-D 
+# > would
+# > be "Eelgrass response", 5A-C would be "Grazing trials", and not sure what
+# > to call the S1 files since they are a mix. Could be "Other" or "Misc"?
   geom_point(data = cis, aes(x = label_ordered, y = m), col = "grey30", cex = 0.5) +
   geom_segment(data = cis, aes(x = label_ordered, y = l, xend = label_ordered, yend = u),
     lwd = 0.4, col = "grey30") +
   geom_vline(xintercept = c(4.5, 7.5, 11.5, 13.5), col = "grey60", lty = 3)
 g
-ggsave("figs/gg-pars.pdf", width = 7, height = 4)
+ggsave("figs/fig-2.pdf", width = 7, height = 4)
 ```
 
 What about quantifying the probability density above and below zero for each of these variables?
@@ -501,14 +505,14 @@ plot_predictions <- function(figure_id, legend_position = c(.85, .96),
 # #    list(g, g_pars)
     g
 }
-plot_predictions("2", legend_position = c(.87, .23))
-ggsave("figs/fig-2.pdf", width = 4.5, height = 2.1)
-plot_predictions("3", legend_position = c(.83, .9))
-ggsave("figs/fig-3.pdf", width = 4.5, height = 2.3)
-plot_predictions("4", legend_position = c(.15, .1))
-ggsave("figs/fig-4.pdf", width = 4.5, height = 3.8)
-plot_predictions("5", legend_position = c(.87, .9))
-ggsave("figs/fig-5.pdf", width = 6.9, height = 2.3)
+plot_predictions("3", legend_position = c(.87, .23))
+ggsave("figs/fig-3.pdf", width = 4.5, height = 2.1)
+plot_predictions("4", legend_position = c(.83, .9))
+ggsave("figs/fig-4.pdf", width = 4.5, height = 2.3)
+plot_predictions("5", legend_position = c(.15, .1))
+ggsave("figs/fig-5.pdf", width = 4.5, height = 3.8)
+plot_predictions("6", legend_position = c(.87, .9))
+ggsave("figs/fig-6.pdf", width = 6.9, height = 2.3)
 plot_predictions("S", whole_numbers = TRUE)
 ggsave("figs/fig-S1.pdf", width = 4.5, height = 3.8)
 

@@ -28,5 +28,5 @@ g <- ggplot(d, aes(pH, value)) +
   theme(panel.spacing = unit(-0.1, "lines")) +
   theme(axis.title = element_text(size = rel(0.8)))
 
-ggsave("figs/fig1.pdf", width = 3.8, height = 2.6)
+ggsave("figs/fig-1.pdf", width = 3.8, height = 2.6)
 
