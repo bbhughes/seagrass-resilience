@@ -1,1 +1,15 @@
-Barrel,pH,Nutrients,hyp1_grazers,hyp2_grazers,hyp3_grazers,hyp_1_algae,hyp_2_algae,hyp_3_algae,hyp1_eelgrass,hyp2_eelgrass,hyp3_eelgrass5,6.99,No Nutrients,1,1,1,5,5,5,1,5,512,7.14,No Nutrients,2.5,2.5,2.5,4,4,4.5,2.5,4.5,4.59,7.29,No Nutrients,4,4,4,2.5,2.5,4,4,4,47,7.43,No Nutrients,5,5,5,1,1,3.5,5,3.5,3.51,7.58,No Nutrients,4,4,4,0.5,0.5,2,4,2,24,7.73,No Nutrients,2.5,2.5,2.5,0.25,0.25,2.5,2.5,2.5,2.514,7.86,No Nutrients,1,1,1,0.13,0.13,1.5,1,1.5,1.56,6.99,Nutrients added,na,na,na,na,na,na,na,na,na11,7.14,Nutrients added,na,na,na,na,na,na,na,na,na10,7.29,Nutrients added,na,na,na,na,na,na,na,na,na8,7.43,Nutrients added,na,na,na,na,na,na,na,na,na2,7.58,Nutrients added,na,na,na,na,na,na,na,na,na3,7.73,Nutrients added,na,na,na,na,na,na,na,na,na13,7.86,Nutrients added,na,na,na,na,na,na,na,na,na
+Barrel,pH,Nutrients,hyp1_grazers,hyp2_grazers,hyp3_grazers,hyp1_algae,hyp2_algae,hyp3_algae,hyp1_eelgrass,hyp2_eelgrass,hyp3_eelgrass
+5,6.99,No Nutrients,1,1,1,5,5,5,1,5,5
+12,7.14,No Nutrients,2.5,2.5,2.5,4,4,4.5,2.5,4.5,4.5
+9,7.29,No Nutrients,4,4,4,2.5,2.5,4,4,4,4
+7,7.43,No Nutrients,5,5,5,1,1,3.5,5,3.5,3.5
+1,7.58,No Nutrients,4,4,4,0.5,0.5,2,4,2,2
+4,7.73,No Nutrients,2.5,2.5,2.5,0.25,0.25,2.5,2.5,2.5,2.5
+14,7.86,No Nutrients,1,1,1,0.13,0.13,1.5,1,1.5,1.5
+6,6.99,Nutrients added,na,na,na,na,na,na,na,na,na
+11,7.14,Nutrients added,na,na,na,na,na,na,na,na,na
+10,7.29,Nutrients added,na,na,na,na,na,na,na,na,na
+8,7.43,Nutrients added,na,na,na,na,na,na,na,na,na
+2,7.58,Nutrients added,na,na,na,na,na,na,na,na,na
+3,7.73,Nutrients added,na,na,na,na,na,na,na,na,na
+13,7.86,Nutrients added,na,na,na,na,na,na,na,na,na
