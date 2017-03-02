@@ -411,7 +411,7 @@ g <- ggplot(d_long_plot, aes(ph, value, colour = as.factor(nutrients))) +
   labs(colour = "Nutrients", fill = "Nutrients", y = "Response value", x = "pH") +
   scale_color_manual(values = cols) + scale_fill_manual(values = cols)
 g
-ggsave("figs/gg-fits.pdf", width = 10, height = 6)
+# ggsave("figs/gg-fits.pdf", width = 10, height = 6)
 ```
 
 # Separate figures for groups of responses 

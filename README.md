@@ -1,3 +1,3 @@
-# Analysis of nonlinear effects of pH and nutrients on seagrass
+# Analysis for 'Unexpected resilience of a seagrass system exposed to multiple stressors'
 
-See the file `analysis/1-bayes.md`.
+This repository contains data and code for Hughes et al. 'Unexpected resilience of a seagrass system exposed to multiple stressors'.
