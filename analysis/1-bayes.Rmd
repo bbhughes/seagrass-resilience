@@ -275,7 +275,7 @@ cis <- mutate(cis, parameter = factor(parameter, levels = c("linear", "quadratic
 cis$label <- sub("\\([a-zA-Z0-9 /%]*\\)", "", cis$label)
 cis$label <- sub(" $", "", cis$label)
 cis$label <- sub("\\\\n", "", cis$label)
-cis <- mutate(cis, label_ordered = paste(label, toupper(figure_panel), sep = " - "))
+cis <- mutate(cis, label_ordered = paste(label, figure_panel, sep = " - "))
 cis <- mutate(cis, label_ordered = reorder(label_ordered, -as.numeric(as.factor(figure_panel))))
 ```
 
@@ -290,7 +290,7 @@ g <- gather(s, parameter, sample, -response) %>%
   mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
   mutate(label = sub(" $", "", label)) %>% 
   mutate(label = sub("\\\\n", "", label)) %>% 
-  mutate(label_ordered = paste(label, toupper(figure_panel), sep = " - ")) %>% 
+  mutate(label_ordered = paste(label, figure_panel, sep = " - ")) %>% 
   mutate(label_ordered = reorder(label_ordered, -as.numeric(as.factor(figure_panel)))) %>% 
   ggplot(aes(x = label_ordered, sample)) + 
   geom_hline(yintercept = 0, lty = 2, col = "grey60") +
@@ -505,16 +505,14 @@ plot_predictions <- function(figure_id, legend_position = c(.85, .96),
 # #    list(g, g_pars)
     g
 }
-plot_predictions("3", legend_position = c(.87, .23))
-ggsave("figs/fig-3.pdf", width = 4.5, height = 2.1)
-plot_predictions("4", legend_position = c(.83, .9))
-ggsave("figs/fig-4.pdf", width = 4.5, height = 2.3)
-plot_predictions("5", legend_position = c(.15, .1))
-ggsave("figs/fig-5.pdf", width = 4.5, height = 3.8)
-plot_predictions("6", legend_position = c(.87, .9))
-ggsave("figs/fig-6.pdf", width = 6.9, height = 2.3)
+plot_predictions("3", legend_position = c(.85, .37))
+ggsave("figs/fig-3.pdf", width = 4.6, height = 3.8)
+plot_predictions("4", legend_position = c(.15, .1))
+ggsave("figs/fig-4.pdf", width = 4.6, height = 3.8)
+plot_predictions("5", legend_position = c(.87, .9))
+ggsave("figs/fig-5.pdf", width = 6.9, height = 2.3)
 plot_predictions("S", whole_numbers = TRUE)
-ggsave("figs/fig-S1.pdf", width = 4.5, height = 3.8)
+ggsave("figs/fig-S1.pdf", width = 4.6, height = 3.8)
 
 ```
 
