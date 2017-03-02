@@ -2,16 +2,16 @@ label_data,label_pub,order,Notes
 algal_mass_g_dw,Macroalgal mass (g DW),3b,
 change_idotea_mass_g_fw,Change in isopod mass (g FW),2b,
 change_seahare_mass_g_fw,Change in seahare mass (g FW),2a,
-dead_shoots,Shoot mortality,S1c,
+dead_shoots,Shoot mortality,S1e,
 epiphyte_cm_shoot,Epiphyte loading\n(mg DW/cm shoot),3a,
 epiphyte_grazing,,0,need to change to diatom grazing
 ido_mortality,Idotea mortality,S1b,
-rhi_mass_g_dw,Rhizome mass\n(g DW/cm rhizome),4c,could be using the wrong column for rhixome mass or perhaps it is transformed
-sh_grazing,Algal epiphyte consumed\n(mg DW/g DW seahare/hr),2c,
+rhi_mass_g_dw,Rhizome mass\n(g DW/cm rhizome),4e,could be using the wrong column for rhizome mass or perhaps it is transformed
+sh_grazing,Algal epiphyte consumed\n(mg DW/g DW seahare/hr),5a,
 sh_mortality,Seahare mortality,S1a,
-shoot_length,Shoot elongation (10cm),4a,"new figure, Sean can you substract 20 from each value "
+shoot_length,Shoot elongation (10cm),4a,"new figure, Sean can you substract 20 from each value? "
 sht_g_dw,Shoot mass (g DW),4b,
 rhi_elong_cm,Rhizome elongation (cm),4d,need to add analysis/figure
-ulva_grazing,Ulva recruitment (% cover),3d,need to add analysis/figure
-diatom_grazing,Diatom recruitment (% cover),3c,need to add analysis/figure
+ulva_grazing,Ulva recruitment (% cover),5b,need to add analysis/figure
+diatom_grazing,Diatom recruitment (% cover),5c,
 change_plant_mass_g_fw,Change in eelgrass mass\n(10g FW),S1d,need to add analysis/figure

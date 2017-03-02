@@ -59,6 +59,10 @@ assert_that(identical(unique(d$nutrients), c(0, 1)))
 
 d <- left_join(d, labels)
 assert_that(all(!is.na(d$label)))
+
+# `ulva_grazing` is zero for all cases of no nutrients; don't model
+d_ulva0 <- filter(d, response == "ulva_grazing" & value == 0 & nutrients == 0)
+d <- filter(d, !(response == "ulva_grazing" & value == 0 & nutrients == 0))
 ```
 
 We need to subtract 20 from each shoot elongation response:
@@ -69,8 +73,6 @@ d$value[d$response == "change_plant_mass_g_fw"] <- d$value[d$response == "change
 d$value[d$response == "shoot_length"] <- d$value[d$response == "shoot_length"]/10
 d <- filter(d, !is.na(value))
 ```
-
-TODO: `ulva_grazing` is zero for all cases of no nutrients
 
 ```{r}
 ggplot(d, aes(ph, value, colour = nutrients_text)) + 
@@ -118,7 +120,7 @@ dt <- tribble(
   "sht_g_dw",                 TRUE,            "gaussian",  "identity",
   "ulva_grazing",             TRUE,            "gaussian",  "identity")
 
-
+assert_that(all(unique(d$response) %in% unique(dt$response)))
 d_long <- left_join(d, dt)
 meta <- unique(select(d_long, response, log_transform, family))
 save(meta, file = "data/meta.rda")
@@ -164,8 +166,15 @@ d_long <- d_long %>% group_by(response) %>%
     ph_scaled2 = poly(ph, 2)[,2]) %>%
   ungroup()
 
+sort(unique(filter(d_long, response == "diatom_grazing")$value))[2]
+sort(unique(filter(d_long, response == "sh_grazing")$value))[2]
+sort(unique(filter(d_long, response == "ulva_grazing")$value))[2]
+
 d_long <- group_by(d_long, response) %>% 
-  mutate(value = ifelse(min(value) == 0 & log_transform, value + 0.1, value))
+  mutate(add_fudge = value == 0 & log_transform) %>% 
+  mutate(value = ifelse(value == 0 & log_transform, sort(unique(value))[2]/4, value))
+sum(d_long$add_fudge)
+select(filter(d_long, add_fudge), ph, nutrients, response, value)
 ```
 
 Let's plot the data that we will fit models to:
@@ -188,6 +197,9 @@ fits <- plyr::dlply(d_long, "response", function(x) {
   } else
     f <- value ~ ph_scaled + ph_scaled2 + nutrients
   
+  if (unique(x$response) == "ulva_grazing") # none when no nutrients
+    f <- log(value) ~ ph_scaled + ph_scaled2
+    
   if (x$family[1] == "gaussian") {
     fam <- gaussian(link = "identity")
     prior_aux <- student_t(df = 3, 0, 5)
@@ -220,11 +232,13 @@ check_out <- map(fits, function(x) {
 Now let's extract the samples from the posteriors and make them into a nice data frame to work with:
 
 ```{r}
-s <- plyr::ldply(fits, function(x) {
-  mm <- as.matrix(x)
-  as_data_frame(mm[, 2:4])
-}) %>% as_data_frame() %>%
-  rename(linear = `ph_scaled`, quadratic = `ph_scaled2`)
+fitsl <- map(fits, function(x) as.data.frame(as.matrix(x)))
+fitsl$ulva_grazing$nutrients <- NA
+
+s <- plyr::ldply(fitsl, function(x) {
+  as_data_frame(select(x, ph_scaled, ph_scaled2, nutrients))
+}) %>%
+  rename(response = .id, linear = `ph_scaled`, quadratic = `ph_scaled2`)
 ```
 
 ```{r}
@@ -236,9 +250,9 @@ Here I will calculate credible intervals to plot:
 ```{r}
 cis <- gather(s, parameter, value, -response) %>% 
   group_by(response, parameter) %>% 
-  summarise(l = quantile(value, 0.025),
-    m = quantile(value, 0.5),
-    u = quantile(value, 0.975)) %>% 
+  summarise(l = quantile(value, 0.025, na.rm = TRUE),
+    m = quantile(value, 0.5, na.rm = TRUE),
+    u = quantile(value, 0.975, na.rm = TRUE)) %>% 
   ungroup() %>% 
   mutate(parameter = factor(parameter, levels = c("linear", "quadratic", "nutrients"))) %>% 
   left_join(labels)
@@ -370,6 +384,8 @@ d_long_plot <- d_long %>% group_by(response, nutrients, ph) %>%
   ungroup() %>%
   left_join(labels)
 
+d_long_plot <- bind_rows(d_long_plot, d_ulva0) # for plotting only
+
 # d_long_plot <- d_long
 
 cols <- c(brewer.pal(4, "Greys")[[3]], brewer.pal(4, "Blues")[[3]])
@@ -405,10 +421,13 @@ d_long_plot <- mutate(d_long_plot,
 
 cols <- c(brewer.pal(4, "Greys")[[3]], brewer.pal(4, "Blues")[[3]])
 
-plot_predictions <- function(figure_id, legend_position = c(.85, .96)) {
+plot_predictions <- function(figure_id, legend_position = c(.85, .96), 
+  whole_numbers = FALSE) {
+
 
     dat <- filter(d_long_plot, substr(figure_panel, 0, 1) == figure_id)
   pp_data <-filter(pp, substr(figure_panel, 0, 1) == figure_id)
+  these_responses <- unique(dat$response)
   
   max_ci <- group_by(pp, response) %>% 
     summarize(max_ci = max(u), min_ci = min(u))
@@ -436,15 +455,54 @@ plot_predictions <- function(figure_id, legend_position = c(.85, .96)) {
     labs(color = "", fill = "", shape = "") +
     geom_text(data = let, aes(x = x, y = y, label = panel), inherit.aes = FALSE) +
     scale_shape_manual(values = c(19, 19))
-  g
+
+
+    if (whole_numbers) {
+      g <- g + scale_y_continuous(breaks = seq(-20, 20, 2))
+    }
+
+    # ----------
+    # Add a parameter panel
+
+# g_pars <- filter(s, response %in% these_responses) %>%
+#   gather(parameter, sample, -response) %>%
+#   inner_join(unique(select(dat, response, log_transform, family, label, figure_panel))) %>%
+#   mutate(parameter = factor(parameter, levels = c("linear", "quadratic", "nutrients"),
+#     labels = c("Linear - pH", "Quadratic - pH", "Nutrients"))) %>%
+#   mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
+#   mutate(label = sub(" $", "", label)) %>% 
+#   mutate(label = sub("\\\\n", "", label)) %>% 
+#   mutate(label_ordered = paste(label, toupper(figure_panel), sep = " - ")) %>% 
+#   mutate(label_ordered = reorder(label_ordered, -as.numeric(as.factor(figure_panel)))) %>% 
+#   ggplot(aes(x = label_ordered, sample, fill  =  parameter)) + 
+#   geom_hline(yintercept = 0, lty = 2, col = "grey60") +
+#   geom_violin(col = NA, adjust = 1.2) +
+# #  coord_flip() +
+#  # facet_wrap(~parameter, scales = "free_x") +
+# #  ylim(lims) +
+#   ylim(c(-4, 4)) +
+#   theme_sleek() +
+#   ylab("Coefficient") + xlab("") 
+# #  geom_point(data = cis, aes(x = label_ordered, y = m), col = "grey20", cex = 0.9) +
+#  # geom_segment(data = cis, aes(x = label_ordered, y = l, xend = label_ordered, yend = u),
+# #    lwd = 0.4, col = "grey20") +
+# #  geom_vline(xintercept = c(4.5, 8.5, 12.5), col = "grey60", lty = 3)
+# 
+#   gridExtra::grid.arrange(g, g_pars, nrow = 1)
+#     
+# #    list(g, g_pars)
+    g
 }
-plot_predictions("2", legend_position = c(.87, .93))
-ggsave("figs/fig-2.pdf", width = 6.9, height = 2.3)
-plot_predictions("3")
-ggsave("figs/fig-3.pdf", width = 4.5, height = 3.8)
+plot_predictions("2", legend_position = c(.87, .23))
+ggsave("figs/fig-2.pdf", width = 4.5, height = 2.3)
+plot_predictions("3", legend_position = c(.87, .9))
+ggsave("figs/fig-3.pdf", width = 4.5, height = 2.3)
 plot_predictions("4")
 ggsave("figs/fig-4.pdf", width = 4.5, height = 3.8)
-plot_predictions("S")
+plot_predictions("5")
+ggsave("figs/fig-5.pdf", width = 6.9, height = 2.3)
+plot_predictions("S", whole_numbers = TRUE)
 ggsave("figs/fig-S1.pdf", width = 4.5, height = 3.8)
+
 ```
 
