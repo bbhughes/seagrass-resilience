@@ -19,7 +19,7 @@ d <- mutate(d, hypothesis = factor(hypothesis,
 
 g <- ggplot(d, aes(pH, value)) +
   geom_smooth(method = "lm", formula = y ~ poly(x, 2), se = FALSE, 
-    colour = "grey40", size = 1) +
+    colour = "grey50", lwd = 0.7) +
   facet_grid(type~hypothesis, switch = "y") +
   theme_sleek() +
   xlab("pH") + ylab("") +
@@ -28,5 +28,5 @@ g <- ggplot(d, aes(pH, value)) +
   theme(panel.spacing = unit(-0.1, "lines")) +
   theme(axis.title = element_text(size = rel(0.8)))
 
-ggsave("figs/fig1.pdf", width = 4.3, height = 3.3)
+ggsave("figs/fig1.pdf", width = 3.7, height = 2.5)
 
