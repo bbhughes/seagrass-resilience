@@ -13,5 +13,5 @@ ulva_grazing,Ulva recruitment (% cover),5b,need to add analysis/figure
 diatom_grazing,Diatom recruitment (% cover),5c,
 sh_mortality,Seahare mortality,S1a,
 ido_mortality,Idotea mortality,S1b,
-change_plant_mass_g_fw,Change in eelgrass mass\n(10g FW),S1d,need to add analysis/figure
-dead_shoots,Shoot mortality,S1e,
+change_plant_mass_g_fw,Change in eelgrass mass\n(10g FW),S1c,need to add analysis/figure
+dead_shoots,Shoot mortality,S1d,
