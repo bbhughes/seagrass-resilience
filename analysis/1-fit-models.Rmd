@@ -516,3 +516,43 @@ ggsave("figs/fig-S1.pdf", width = 4.6, height = 3.8)
 
 ```
 
+Let's derive some values for the paper. 
+
+```{r}
+m <- fits[["epiphyte_cm_shoot"]]
+
+get_value <- function(response_value, ph_value) {
+  xx <- filter(pp, response == response_value, ph >= ph_value - 0.001, nutrients == 1) %>% 
+    arrange(ph)
+  print(xx$ph[[1]])
+  xx <- xx[1, "med"]
+  xx[[1]]
+}
+(x1 <- get_value("epiphyte_cm_shoot", 7.45))
+(x2 <- get_value("epiphyte_cm_shoot", 7.86))
+round(100 * (x1 / x2 - 1), 0)
+
+(x1 <- get_value("algal_mass_g_dw", 6.99))
+(x2 <- get_value("algal_mass_g_dw", 7.86))
+round(100 * (x1 / x2 - 1), 0)
+round(x1/x2, 1)
+
+# there was x-fold higher diatom recruitment when nutrients were added:
+x <- as.data.frame(as.matrix(fits[["diatom_grazing"]]))[,"nutrients"]
+round(exp(quantile(x, probs = c(0.025, 0.5, 0.975))), 1)
+
+# Elevated nutrient conditions were associated with smaller changes in mean seahare biomass 
+x <- as.data.frame(as.matrix(fits[["change_seahare_mass_g_fw"]]))[,"nutrients"]
+round((quantile(x, probs = c(0.025, 0.5, 0.975))), 1)
+
+# 
+x <- as.data.frame(as.matrix(fits[["dead_shoots"]]))[,"nutrients"]
+round(exp(quantile(x, probs = c(0.025, 0.5, 0.975))), 1)
+
+
+#
+x <- as.data.frame(as.matrix(fits[["sh_grazing"]]))[,"nutrients"]
+round(exp(quantile(x, probs = c(0.025, 0.5, 0.975))), 1)
+
+```
+
