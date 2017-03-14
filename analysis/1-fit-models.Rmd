@@ -104,6 +104,15 @@ group_by(d, response) %>%
   filter(minimum_value < 0)
 ```
 
+Should we condense the data in the eelgrass figure into tank means? 
+
+```{r}
+# d <- group_by(d, response, nutrients, ph, figure_panel, 
+#   nutrients_text, label) %>% 
+#   summarize(value = mean(value)) %>% 
+#   ungroup()
+```
+
 Here I'm creating a data frame to merge in that describes the type of GLM to fit for each response variable:
 
 ```{r}
