@@ -486,7 +486,7 @@ plot_predictions <- function(figure_id, legend_position = c(.85, .96),
 
     g
 }
-plot_predictions("3", legend_position = c(.7, .37))
+plot_predictions("3", legend_position = c(.75, .37))
 ggsave("figs/fig-3.pdf", width = 4.6, height = 3.8)
 plot_predictions("4", legend_position = c(.3, .1))
 ggsave("figs/fig-4.pdf", width = 4.6, height = 3.8)
