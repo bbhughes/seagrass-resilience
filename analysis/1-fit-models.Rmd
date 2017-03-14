@@ -118,11 +118,11 @@ dt <- tribble(
   "diatom_grazing",           TRUE,            "gaussian",  "identity",
   "epiphyte_cm_shoot",        TRUE,            "gaussian",  "identity",
   "ido_mortality",            FALSE,           "count",     "log",
-  "rhi_elong_cm",             FALSE,           "gaussian",  "identity",
+  "rhi_elong_cm",             TRUE,           "gaussian",  "identity",
   "rhi_mass_g_dw",            TRUE,            "gaussian",  "identity",
   "sh_grazing",               TRUE,            "gaussian",  "identity",
   "sh_mortality",             FALSE,           "count",     "log",
-  "shoot_length",             FALSE,           "gaussian",  "identity",
+  "shoot_length",             TRUE,           "gaussian",  "identity",
   "sht_g_dw",                 TRUE,            "gaussian",  "identity",
   "ulva_grazing",             TRUE,            "gaussian",  "identity")
 
