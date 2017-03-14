@@ -70,12 +70,13 @@ d_ulva0 <- filter(d, response == "ulva_grazing" & value == 0 & nutrients == 0)
 d <- filter(d, !(response == "ulva_grazing" & value == 0 & nutrients == 0))
 ```
 
-We need to subtract 20 from each shoot elongation response:
+We need to subtract 20 from each shoot elongation response and manipulate some units so that coefficients are roughly on the same scale:
 
 ```{r}
 d$value[d$response == "shoot_length"] <- d$value[d$response == "shoot_length"] - 20
 d$value[d$response == "change_plant_mass_g_fw"] <- d$value[d$response == "change_plant_mass_g_fw"]/10
 d$value[d$response == "shoot_length"] <- d$value[d$response == "shoot_length"]/10
+d$value[d$response == "rhi_elong_cm"] <- d$value[d$response == "rhi_elong_cm"]/10
 d <- filter(d, !is.na(value))
 ```
 
