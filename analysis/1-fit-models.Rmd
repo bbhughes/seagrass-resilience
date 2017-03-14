@@ -456,7 +456,7 @@ plot_predictions <- function(figure_id, legend_position = c(.85, .96),
   let <- dat %>% left_join(max_ci) %>% 
     group_by(response) %>%
     summarize(label_ordered = label_ordered[1], 
-      x = min(ph) + 0.02, 
+      x = max(ph) - 0.02, 
       range = diff(range(c(value, max_ci, min_ci))), 
       y = max(c(value, max_ci)) - range * 0.04) %>% 
     arrange(label_ordered) %>%
@@ -489,7 +489,7 @@ plot_predictions("3", legend_position = c(.7, .37))
 ggsave("figs/fig-3.pdf", width = 4.6, height = 3.8)
 plot_predictions("4", legend_position = c(.3, .1))
 ggsave("figs/fig-4.pdf", width = 4.6, height = 3.8)
-inplot_predictions("5", legend_position = c(.87, .9))
+plot_predictions("5", legend_position = c(.87, .9))
 ggsave("figs/fig-5.pdf", width = 6.9, height = 2.3)
 plot_predictions("S", whole_numbers = TRUE, legend_position = c(.25, .93))
 ggsave("figs/fig-S1.pdf", width = 4.6, height = 3.8)
