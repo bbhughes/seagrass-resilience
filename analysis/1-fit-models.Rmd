@@ -276,7 +276,7 @@ cis <- gather(s, parameter, value, -response) %>%
 Now let's plot the coefficients with the credible intervals overlaid:
 
 ```{r, fig.height=4, fig.width=6.5}
-lims <- c(-5.8, 5.8)
+lims <- c(-5.5, 5.5)
 cis$l[cis$l < lims[1]] <- lims[1]
 cis$u[cis$u > lims[2]] <- lims[2]
 cis <- mutate(cis, parameter = factor(parameter, levels = c("linear", "quadratic", "nutrients"),
