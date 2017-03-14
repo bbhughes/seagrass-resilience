@@ -474,36 +474,6 @@ plot_predictions <- function(figure_id, legend_position = c(.85, .96),
       g <- g + scale_y_continuous(breaks = seq(-20, 20, 2))
     }
 
-    # ----------
-    # Add a parameter panel
-
-# g_pars <- filter(s, response %in% these_responses) %>%
-#   gather(parameter, sample, -response) %>%
-#   inner_join(unique(select(dat, response, log_transform, family, label, figure_panel))) %>%
-#   mutate(parameter = factor(parameter, levels = c("linear", "quadratic", "nutrients"),
-#     labels = c("Linear - pH", "Quadratic - pH", "Nutrients"))) %>%
-#   mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
-#   mutate(label = sub(" $", "", label)) %>% 
-#   mutate(label = sub("\\\\n", "", label)) %>% 
-#   mutate(label_ordered = paste(label, toupper(figure_panel), sep = " - ")) %>% 
-#   mutate(label_ordered = reorder(label_ordered, -as.numeric(as.factor(figure_panel)))) %>% 
-#   ggplot(aes(x = label_ordered, sample, fill  =  parameter)) + 
-#   geom_hline(yintercept = 0, lty = 2, col = "grey60") +
-#   geom_violin(col = NA, adjust = 1.2) +
-# #  coord_flip() +
-#  # facet_wrap(~parameter, scales = "free_x") +
-# #  ylim(lims) +
-#   ylim(c(-4, 4)) +
-#   theme_sleek() +
-#   ylab("Coefficient") + xlab("") 
-# #  geom_point(data = cis, aes(x = label_ordered, y = m), col = "grey20", cex = 0.9) +
-#  # geom_segment(data = cis, aes(x = label_ordered, y = l, xend = label_ordered, yend = u),
-# #    lwd = 0.4, col = "grey20") +
-# #  geom_vline(xintercept = c(4.5, 8.5, 12.5), col = "grey60", lty = 3)
-# 
-#   gridExtra::grid.arrange(g, g_pars, nrow = 1)
-#     
-# #    list(g, g_pars)
     g
 }
 plot_predictions("3", legend_position = c(.85, .37))
@@ -514,7 +484,6 @@ plot_predictions("5", legend_position = c(.87, .9))
 ggsave("figs/fig-5.pdf", width = 6.9, height = 2.3)
 plot_predictions("S", whole_numbers = TRUE)
 ggsave("figs/fig-S1.pdf", width = 4.6, height = 3.8)
-
 ```
 
 Let's derive some values for the paper. 
