@@ -145,13 +145,13 @@ Let's print a table that can be used in the paper to describe the models:
 
 ```{r}
 .simpleCap <- function(x) {
-    s <- strsplit(x, " ")[[1]]
-    paste(toupper(substring(s, 1, 1)), substring(s, 2),
-          sep = "", collapse = " ")
+  s <- strsplit(x, " ")[[1]]
+  paste(toupper(substring(s, 1, 1)), substring(s, 2),
+    sep = "", collapse = " ")
 }
 
 cap_vec <- function(x) {
-    map_chr(x, .simpleCap)
+  map_chr(x, .simpleCap)
 }
 
 model_table <- inner_join(dt, labels) %>% select(-response) %>% 
@@ -175,7 +175,7 @@ Let's work with orthogonal polynomials:
 
 ```{r}
 d_long$ph_scaled <- d$ph
-  
+
 d_long <- d_long %>% group_by(response) %>%
   mutate(
     ph_scaled = poly(ph, 2)[,1],
@@ -215,14 +215,14 @@ fits <- plyr::dlply(d_long, "response", function(x) {
   
   if (unique(x$response) == "ulva_grazing") # none when no nutrients
     f <- log(value) ~ ph_scaled + ph_scaled2
-    
+  
   if (x$family[1] == "gaussian") {
     fam <- gaussian(link = "identity")
     prior_aux <- student_t(df = 3, 0, 5)
   }
-#  if (x$family[1] == "gamma")
-#    fam <- gaussian(link = "identity")
-    # fam <- Gamma(link = "log")
+  #  if (x$family[1] == "gamma")
+  #    fam <- gaussian(link = "identity")
+  # fam <- Gamma(link = "log")
   if (x$family[1] == "count") {
     fam <- neg_binomial_2(link = "log")
     prior_aux <- student_t(df = 3, 0, 20)
@@ -281,7 +281,7 @@ lims <- c(-5.5, 5.5)
 cis$l[cis$l < lims[1]] <- lims[1]
 cis$u[cis$u > lims[2]] <- lims[2]
 cis <- mutate(cis, parameter = factor(parameter, levels = c("linear", "quadratic", "nutrients"),
-    labels = c("Linear - pH", "Quadratic - pH", "Nutrients")))
+  labels = c("Linear - pH", "Quadratic - pH", "Nutrients")))
 cis$label <- sub("\\([a-zA-Z0-9 /%]*\\)", "", cis$label)
 cis$label <- sub(" $", "", cis$label)
 cis$label <- sub("\\\\n", "", cis$label)
@@ -311,10 +311,10 @@ g <- gather(s, parameter, sample, -response) %>%
   ylim(lims) +
   theme_sleek() +
   ylab("Coefficient") + xlab("Other        Grazing trials   Eelgrass  Algal  Grazer") +
-#   "Grazer response", 3A and B would be "Algal response", 4A-D 
-# > would
-# > be "Eelgrass response", 5A-C would be "Grazing trials", and not sure what
-# > to call the S1 files since they are a mix. Could be "Other" or "Misc"?
+  #   "Grazer response", 3A and B would be "Algal response", 4A-D 
+  # > would
+  # > be "Eelgrass response", 5A-C would be "Grazing trials", and not sure what
+  # > to call the S1 files since they are a mix. Could be "Other" or "Misc"?
   geom_point(data = cis, aes(x = label_ordered, y = m), col = "grey30", cex = 0.5) +
   geom_segment(data = cis, aes(x = label_ordered, y = l, xend = label_ordered, yend = u),
     lwd = 0.4, col = "grey30") +
@@ -380,10 +380,10 @@ ii <<- 0
 p <- plyr::ldply(fits, function(x) {
   ii <<- ii + 1
   newdata_this_response <- as.data.frame(filter(newdata, response == names(fits)[[ii]]))
-  pp <- predict(x, newdata = newdata_this_response, se.fit = TRUE)
-  l <- pp$fit - qnorm(.9) * pp$se.fit
-  u <- pp$fit + qnorm(.9) * pp$se.fit # 80% CI
-  med <- pp$fit
+  pp <- posterior_linpred(x, newdata = newdata_this_response)
+  l <- apply(pp, 2, quantile, probs = 0.1)
+  u <- apply(pp, 2, quantile, probs = 0.9)
+  med <- apply(pp, 2, median)
   data.frame(l, med, u, newdata_this_response)
 }) %>% as_data_frame()
 
@@ -445,15 +445,15 @@ cols <- c(brewer.pal(4, "Greys")[[3]], brewer.pal(4, "Blues")[[3]])
 
 plot_predictions <- function(figure_id, legend_position = c(.85, .96), 
   whole_numbers = FALSE) {
-
-
-    dat <- filter(d_long_plot, substr(figure_panel, 0, 1) == figure_id)
+  
+  
+  dat <- filter(d_long_plot, substr(figure_panel, 0, 1) == figure_id)
   pp_data <-filter(pp, substr(figure_panel, 0, 1) == figure_id)
   these_responses <- unique(dat$response)
   
   max_ci <- group_by(pp, response) %>% 
     summarize(max_ci = max(u), min_ci = min(u))
-    
+  
   let <- dat %>% left_join(max_ci) %>% 
     group_by(response) %>%
     summarize(label_ordered = label_ordered[1], 
@@ -479,12 +479,12 @@ plot_predictions <- function(figure_id, legend_position = c(.85, .96),
     geom_text(data = let, aes(x = x, y = y, label = panel), inherit.aes = FALSE) +
     scale_shape_manual(values = c(19, 19)) +
     scale_x_reverse()
-
-    if (whole_numbers) {
-      g <- g + scale_y_continuous(breaks = seq(-20, 20, 2))
-    }
-
-    g
+  
+  if (whole_numbers) {
+    g <- g + scale_y_continuous(breaks = seq(-20, 20, 2))
+  }
+  
+  g
 }
 plot_predictions("3", legend_position = c(.75, .37))
 ggsave("figs/fig-3.pdf", width = 4.6, height = 3.8)
@@ -534,3 +534,105 @@ x <- as.data.frame(as.matrix(fits[["sh_grazing"]]))[,"nutrients"]
 print(round(exp(quantile(x, probs = c(0.025, 0.5, 0.975))), 1))
 ```
 
+# Jackknife test of leverage 
+
+Let's leave out each single data point from each model fit and collect all the predictions and plot them. 
+
+```{r}
+N <- 80
+newdata <- group_by(d_long, response) %>%
+  do({
+    data.frame(ph_scaled = predict(poly(.$ph, 2), 
+      seq(min(.$ph), max(.$ph), length.out = N))[,1],
+      ph = seq(min(.$ph), max(.$ph), length.out = N),
+      ph_scaled2 = predict(poly(.$ph, 2), seq(min(.$ph), max(.$ph), 
+        length.out = N))[,2])
+  })
+newdata <- bind_rows(data.frame(newdata, nutrients = 0), 
+  data.frame(newdata, nutrients = 1))
+
+jackknife <- function(dat) {
+  fits_jk <- plyr::ddply(dat, "response", function(x) {
+    
+    print(unique(x$response))
+    
+    newdata_this_response <- 
+      as.data.frame(filter(newdata, response == unique(x$response)))
+    
+    if (x$log_transform[1]) {
+      f <- log(value) ~ ph_scaled + ph_scaled2 + nutrients
+    } else
+      f <- value ~ ph_scaled + ph_scaled2 + nutrients
+    
+    if (unique(x$response) == "ulva_grazing") # none when no nutrients
+      f <- log(value) ~ ph_scaled + ph_scaled2
+    
+    if (x$family[1] == "gaussian") {
+      fam <- gaussian(link = "identity")
+      prior_aux <- student_t(df = 3, 0, 5)
+    }
+    if (x$family[1] == "count") {
+      fam <- neg_binomial_2(link = "log")
+      prior_aux <- student_t(df = 3, 0, 20)
+    }
+    
+    m <- stan_glm(f, data = x, iter = 1000, chains = 4, family = fam,
+      prior = normal(0, 2),
+      prior_intercept = normal(0, 10),
+      prior_aux = prior_aux)
+    
+    b <- broom::tidy(m$stanfit, rhat = TRUE, ess = TRUE)
+    assert_that(max(b$rhat) < 1.05)
+    assert_that(min(b$ess) > 100)
+    
+    pp <- posterior_linpred(m, newdata = newdata_this_response)
+    med <- apply(pp, 2, median)
+    data.frame(med, newdata_this_response)
+  })
+}
+
+d_long <- mutate(d_long, tank = as.numeric(as.factor(paste(ph, nutrients))))
+
+jk <- plyr::ldply(unique(d_long$tank), 
+  function(i) {
+    data.frame(jackknife(filter(d_long, tank != i)), tank_removed = i)})
+
+nojk <- data.frame(jackknife(d_long), tank_removed = NA)
+```
+
+And plot the jackknifed output. 
+
+```{r}
+jk2 <- inner_join(jk, unique(select(d_long, response, log_transform, family)))
+jk2 <- jk2 %>% group_by(response) %>%
+  mutate(med = ifelse(log_transform | family == "count", exp(med), med)) %>%
+  left_join(labels) %>% 
+  mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
+  mutate(label = sub(" $", "", label)) %>% 
+  mutate(label = sub("\\\\n", "", label)) %>% 
+  mutate(label_ordered = paste(figure_panel, label, sep = " - "))
+
+nojk2 <- inner_join(nojk, unique(select(d_long, response, log_transform, family)))
+nojk2 <- nojk2 %>% group_by(response) %>%
+  mutate(med = ifelse(log_transform | family == "count", exp(med), med)) %>%
+  left_join(labels) %>% 
+  mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
+  mutate(label = sub(" $", "", label)) %>% 
+  mutate(label = sub("\\\\n", "", label)) %>% 
+  mutate(label_ordered = paste(figure_panel, label, sep = " - "))
+
+filter(jk2) %>% 
+  ggplot(aes(ph, med, color = as.factor(nutrients), 
+    group = as.factor(paste(tank_removed, nutrients)))) +
+  geom_line(alpha = 0.45) +
+  facet_wrap(~label_ordered, scales = "free_y") +
+  scale_x_reverse() + theme_sleek() +
+  scale_colour_manual(values = cols) +
+  labs(colour = "Nutrients", fill = "Nutrients", y = "Response value", 
+    x = expression(Acidification~(mean~seawater~pH[T]))) +
+  guides(colour = guide_legend(override.aes = list(alpha = 1, lwd = 1))) +
+  theme(strip.text.x = element_text(size = 9)) +
+  geom_line(data = nojk2, lwd = 1.5, alpha = 1)
+
+ggsave("figs/jackknife.pdf", height = 7.5, width = 10)
+```
