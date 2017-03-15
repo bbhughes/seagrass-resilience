@@ -461,7 +461,7 @@ plot_predictions <- function(figure_id, legend_position = c(.85, .96),
       range = diff(range(c(value, max_ci, min_ci))), 
       y = max(c(value, max_ci)) - range * 0.04) %>% 
     arrange(label_ordered) %>%
-    mutate(panel = letters[1:n()])
+    mutate(panel = LETTERS[1:n()])
   
   g <- ggplot(dat, aes_string("ph", "value", colour = "nutrients_text")) + 
     geom_point(alpha = 0.45, aes(shape = nutrients_text)) +

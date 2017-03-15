@@ -18,7 +18,7 @@ d <- mutate(d, hypothesis = factor(hypothesis,
   labels = c("Hypothesis 1", "Hypothesis 2", "Hypothesis 3")))
 
 let <- unique(select(d, hypothesis, type))
-let <- mutate(let, letter = letters[seq_len(n())], x = 7.8, y = 4.75)
+let <- mutate(let, letter = LETTERS[seq_len(n())], x = 7.8, y = 4.75)
 
 g <- ggplot(d, aes(pH, value)) +
   geom_smooth(method = "lm", formula = y ~ poly(x, 2), se = FALSE, 
