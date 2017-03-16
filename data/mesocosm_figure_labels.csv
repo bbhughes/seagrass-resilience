@@ -5,9 +5,9 @@ change_idotea_mass_g_fw,Change in isopod mass (g FW),3b,
 epiphyte_cm_shoot,Epiphyte loading\n(mg DW/cm shoot),3c,
 algal_mass_g_dw,Macroalgal mass (g DW),3d,
 shoot_length,Shoot elongation (10cm),4a,"new figure, Sean can you substract 20 from each value? "
-sht_g_dw,Shoot mass (g DW),4b,
-rhi_elong_cm,Rhizome elongation (10cm),4c,need to add analysis/figure
-rhi_mass_g_dw,Rhizome mass\n(g DW/cm rhizome),4d,could be using the wrong column for rhizome mass or perhaps it is transformed
+sht_g_dw,Shoot mass (g DW),,
+rhi_elong_cm,Rhizome elongation (10cm),4b,need to add analysis/figure
+rhi_mass_g_dw,Rhizome mass\n(g DW/cm rhizome),4c,could be using the wrong column for rhizome mass or perhaps it is transformed
 sh_grazing,Algal epiphyte consumed\n(mg DW/g DW seahare/hr),5a,
 ulva_grazing,Ulva recruitment (% cover),5b,need to add analysis/figure
 diatom_grazing,Diatom recruitment (% cover),5c,
