@@ -14,6 +14,7 @@ d <- mutate(d, hypothesis = sub("(hyp[0-9]+)_([a-z]+)", "\\1", response),
 
 d <- mutate(d, type = factor(type, levels = c("grazers", "algae", "eelgrass"),
   labels = c("Grazer\nefficiency", "Algal\nbiomass", "Seagrass\nbiomass")))
+
 d <- mutate(d, hypothesis = factor(hypothesis, 
   labels = c("Hypothesis 1", "Hypothesis 2", "Hypothesis 3")))
 
@@ -25,15 +26,20 @@ g <- ggplot(d, aes(pH, value)) +
     colour = "grey50", lwd = 0.7) +
   facet_grid(type~hypothesis, switch = "y") +
   theme_sleek() +
-  xlab(expression(pH[T])) + ylab("") +
+  ylab("") +
+  xlab(expression(Acidification~(mean~seawater~pH[T]))) +
   geom_text(data = let, aes(x = x, y = y, label = letter), color = "grey40") +
-  theme(axis.ticks.x=element_blank(), axis.ticks.y=element_blank(),
-    axis.text.y = element_blank(), axis.text.x = element_blank()) +
+  theme(axis.ticks.y=element_blank(), axis.ticks.x = element_blank(),
+    axis.text.y = element_blank()) +
   theme(panel.spacing = unit(-0.1, "lines")) +
   theme(axis.title = element_text(size = rel(0.8))) +
-  scale_x_reverse()
+  # scale_x_reverse(breaks = c(7.2, 7.7), labels = c(expression(Low~pH[T]), expression(High~pH[T]))) +
+  scale_x_reverse(breaks = c(7.2, 7.7)) +
+  geom_rect(data = subset(let, letter %in% c("F", "H", "I")), aes(x = x, y = y),
+    fill = "black",
+    xmin = -Inf,xmax = Inf, ymin = -Inf,ymax = Inf, alpha = 0.1) 
 
-print(g)
+# print(g)
 
 ggsave("figs/fig-1.pdf", width = 4, height = 2.8)
 
