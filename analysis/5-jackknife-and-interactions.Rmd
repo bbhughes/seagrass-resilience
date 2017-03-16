@@ -1,0 +1,215 @@
+---
+output:
+  html_document: default
+---
+
+# Jackknife test of leverage 
+
+```{r, echo=FALSE}
+library(knitr)
+opts_knit$set(root.dir = "..") 
+```
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r, message=FALSE}
+library(tidyverse)
+library(rstanarm)
+library(RColorBrewer)
+library(assertthat)
+library(ggsidekick) # devtools::install_github("seananderson/ggsidekick")
+```
+
+Let's leave out each single data point from each model fit and collect all the predictions and plot them. 
+
+```{r}
+d_long <- readRDS("data/generated/d_long.rds")
+labels <- readRDS("data/generated/labels.rds")
+```
+
+
+```{r}
+N <- 100
+newdata <- group_by(d_long, response) %>%
+  do({
+    data.frame(ph_scaled = predict(poly(.$ph, 2), 
+      seq(min(.$ph), max(.$ph), length.out = N))[,1],
+      ph = seq(min(.$ph), max(.$ph), length.out = N),
+      ph_scaled2 = predict(poly(.$ph, 2), seq(min(.$ph), max(.$ph), 
+        length.out = N))[,2])
+  })
+newdata <- bind_rows(data.frame(newdata, nutrients = 0), 
+  data.frame(newdata, nutrients = 1))
+
+jackknife <- function(dat) {
+  fits_jk <- plyr::ddply(dat, "response", function(x) {
+    
+    print(unique(x$response))
+    
+    newdata_this_response <- 
+      as.data.frame(filter(newdata, response == unique(x$response)))
+    
+    if (x$log_transform[1]) {
+      f <- log(value) ~ ph_scaled + ph_scaled2 + nutrients
+    } else
+      f <- value ~ ph_scaled + ph_scaled2 + nutrients
+    
+    if (unique(x$response) == "ulva_grazing") # none when no nutrients
+      f <- log(value) ~ ph_scaled + ph_scaled2
+    
+    if (x$family[1] == "gaussian") {
+      fam <- gaussian(link = "identity")
+      prior_aux <- student_t(df = 3, 0, 5, autoscale = FALSE)
+    }
+    if (x$family[1] == "count") {
+      fam <- neg_binomial_2(link = "log")
+      prior_aux <- student_t(df = 3, 0, 20, autoscale = FALSE)
+    }
+    
+    if (unique(x$re) == FALSE) {
+      m <- stan_glm(f, data = x, iter = 800, chains = 4, family = fam,
+        prior = normal(0, 3, autoscale = FALSE),
+        prior_intercept = normal(0, 10, autoscale = FALSE),
+        prior_aux = prior_aux)
+    } else {
+      f <- as.formula(paste(Reduce(paste, deparse(f)), "+ (1 | tank)"))
+      m <- stan_lmer(f, data = x, iter = 800, chains = 4,
+        prior = normal(0, 3, autoscale = FALSE),
+        prior_intercept = normal(0, 10, autoscale = FALSE),
+        prior_aux = prior_aux, cores = 4)
+    }
+    
+    b <- broom::tidy(m$stanfit, rhat = TRUE, ess = TRUE)
+    assert_that(max(b$rhat) < 1.05)
+    assert_that(min(b$ess) > 100)
+    
+    pp <- posterior_linpred(m, newdata = newdata_this_response, re.form = NA)
+    med <- apply(pp, 2, median)
+    data.frame(med, newdata_this_response)
+  })
+}
+
+d_long <- mutate(d_long, tank = as.numeric(as.factor(paste(ph, nutrients))))
+
+jk <- plyr::ldply(unique(d_long$tank), 
+  function(i) {
+    data.frame(jackknife(dplyr::filter(d_long, tank != i)), tank_removed = i)})
+
+saveRDS(jk, file = "data/generated/jk.rds")
+```
+
+And plot the jackknifed output. 
+
+```{r}
+jk <- readRDS("data/generated/jk.rds")
+nojk <- data.frame(jackknife(d_long), tank_removed = NA)
+jk2 <- inner_join(jk, unique(select(d_long, response, log_transform, family)))
+jk2 <- jk2 %>% group_by(response) %>%
+  mutate(med = ifelse(log_transform | family == "count", exp(med), med)) %>%
+  left_join(labels) %>% 
+  mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
+  mutate(label = sub(" $", "", label)) %>% 
+  mutate(label = sub("\\\\n", "", label)) %>% 
+  mutate(label_ordered = paste(figure_panel, label, sep = " - "))
+
+nojk2 <- inner_join(nojk, unique(select(d_long, response, log_transform, family)))
+nojk2 <- nojk2 %>% group_by(response) %>%
+  mutate(med = ifelse(log_transform | family == "count", exp(med), med)) %>%
+  left_join(labels) %>% 
+  mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
+  mutate(label = sub(" $", "", label)) %>% 
+  mutate(label = sub("\\\\n", "", label)) %>% 
+  mutate(label_ordered = paste(figure_panel, label, sep = " - "))
+
+cols <- c(brewer.pal(4, "Greys")[[3]], brewer.pal(4, "Blues")[[3]])
+filter(jk2) %>% 
+  ggplot(aes(ph, med, color = as.factor(nutrients), 
+    group = as.factor(paste(tank_removed, nutrients)))) +
+  geom_line(alpha = 0.45) +
+  facet_wrap(~label_ordered, scales = "free_y") +
+  scale_x_reverse() + theme_sleek() +
+  scale_colour_manual(values = cols) +
+  labs(colour = "Nutrients", fill = "Nutrients", y = "Response value", 
+    x = expression(Acidification~(mean~seawater~pH[T]))) +
+  guides(colour = guide_legend(override.aes = list(alpha = 1, lwd = 1))) +
+  theme(strip.text.x = element_text(size = 9)) +
+  geom_line(data = nojk2, lwd = 1.5, alpha = 1)
+
+ggsave("figs/jackknife.pdf", height = 7.5, width = 10)
+```
+
+# Interactions 
+
+Let's verify quantitatively that there is little evidence for an interaction with the linear effect of pH with nutrients for the response variables with fairly high probability of nutrient main effects. We don't see much visual evidence of these interactions. 
+
+```{r}
+fits_interactions <- plyr::dlply(d_long, "response", function(x) {
+  print(unique(x$response))
+  if (x$log_transform[1]) {
+    f <- log(value) ~ ph_scaled + ph_scaled2 + nutrients + ph_scaled:nutrients
+  } else
+    f <- value ~ ph_scaled + ph_scaled2 + nutrients + ph_scaled:nutrients
+  
+  if (unique(x$response) == "ulva_grazing") # none when no nutrients
+    f <- log(value) ~ ph_scaled + ph_scaled2
+  
+  if (x$family[1] == "gaussian") {
+    fam <- gaussian(link = "identity")
+    prior_aux <- student_t(df = 3, 0, 5, autoscale = FALSE)
+  }
+  #  if (x$family[1] == "gamma")
+  #    fam <- gaussian(link = "identity")
+  # fam <- Gamma(link = "log")
+  if (x$family[1] == "count") {
+    fam <- neg_binomial_2(link = "log")
+    prior_aux <- student_t(df = 3, 0, 20, autoscale = FALSE)
+  }
+  
+  if (unique(x$re) == FALSE) {
+    stan_glm(f, data = x, iter = 2000, chains = 4, family = fam,
+      prior = normal(0, 3, autoscale = FALSE),
+      prior_intercept = normal(0, 10, autoscale = FALSE),
+      prior_aux = prior_aux)
+  } else {
+    f <- as.formula(paste(Reduce(paste, deparse(f)), "+ (1 | tank)"))
+    stan_lmer(f, data = x, iter = 2000, chains = 4,
+      prior = normal(0, 3, autoscale = FALSE),
+      prior_intercept = normal(0, 10, autoscale = FALSE),
+      prior_aux = prior_aux, cores = 4)
+  }
+})
+
+fitsl <- map(fits_interactions, function(x) as.data.frame(as.matrix(x)))
+fitsl$ulva_grazing$nutrients <- NA
+fitsl$ulva_grazing$`ph_scaled:nutrients` <- NA
+
+s <- plyr::ldply(fitsl, function(x) {
+  as_data_frame(x[, names(x) == "ph_scaled:nutrients"])
+}) %>%
+  rename(response = .id)
+```
+
+Here I will calculate credible intervals to plot:
+
+```{r}
+cis <- gather(s, parameter, value, -response) %>% 
+  group_by(response, parameter) %>% 
+  summarise(l = quantile(value, 0.025, na.rm = TRUE),
+    m = quantile(value, 0.5, na.rm = TRUE),
+    u = quantile(value, 0.975, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  left_join(labels)
+
+ggplot(data = cis) +
+  geom_point(aes(x = response, y = m), col = "grey30", cex = 0.5) +
+  geom_segment(aes(x = response, y = l, xend = response, yend = u)) +
+  coord_flip()
+
+ggsave("figs/interaction.pdf", height = 6, width = 6)
+```
+
