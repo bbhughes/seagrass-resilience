@@ -68,6 +68,8 @@ assert_that(all(!is.na(d$label)))
 # `ulva_grazing` is zero for all cases of no nutrients; don't model
 d_ulva0 <- filter(d, response == "ulva_grazing" & value == 0 & nutrients == 0)
 d <- filter(d, !(response == "ulva_grazing" & value == 0 & nutrients == 0))
+
+d <- filter(d, response != "sht_g_dw")
 ```
 
 We need to subtract 20 from each shoot elongation response and manipulate some units so that coefficients are roughly on the same scale:
