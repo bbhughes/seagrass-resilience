@@ -203,13 +203,21 @@ cis <- gather(s, parameter, value, -response) %>%
     m = quantile(value, 0.5, na.rm = TRUE),
     u = quantile(value, 0.975, na.rm = TRUE)) %>% 
   ungroup() %>% 
-  left_join(labels)
+  left_join(labels) %>% 
+  mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
+  mutate(label = sub(" $", "", label)) %>% 
+  mutate(label = sub("\\\\n", "", label)) %>% 
+  mutate(label_ordered = paste(toupper(figure_panel), label, sep = " - "))
 
 ggplot(data = cis) +
-  geom_point(aes(x = response, y = m), col = "grey30", cex = 0.5) +
-  geom_segment(aes(x = response, y = l, xend = response, yend = u)) +
-  coord_flip()
+  geom_point(aes(x = rev(label_ordered), y = m), col = "grey30") +
+  geom_segment(aes(x = rev(label_ordered), y = l, xend = rev(label_ordered), yend = u)) +
+  coord_flip() +
+  geom_hline(yintercept = 0, lty = 2) +
+  theme_sleek() +
+  ylab("Linear interaction coefficient (pH and nutrients)") +
+  xlab("")
 
-ggsave("figs/interaction.pdf", height = 6, width = 6)
+ggsave("figs/interaction.pdf", height = 4, width = 6)
 ```
 
