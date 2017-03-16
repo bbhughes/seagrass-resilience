@@ -120,22 +120,22 @@ Here I'm creating a data frame to merge in that describes the type of GLM to fit
 ```{r}
 # link not used!
 dt <- tribble(
-  ~response,                  ~log_transform,  ~family,     ~link,
-  "algal_mass_g_dw",          TRUE,            "gaussian",  "identity",
-  "change_idotea_mass_g_fw",  FALSE,           "gaussian",  "identity",
-  "change_plant_mass_g_fw",   FALSE,           "gaussian",  "identity",
-  "change_seahare_mass_g_fw", FALSE,           "gaussian",  "identity",
-  "dead_shoots",              FALSE,           "count",     "log",
-  "diatom_grazing",           TRUE,            "gaussian",  "identity",
-  "epiphyte_cm_shoot",        TRUE,            "gaussian",  "identity",
-  "ido_mortality",            FALSE,           "count",     "log",
-  "rhi_elong_cm",             FALSE,           "gaussian",  "identity",
-  "rhi_mass_g_dw",            TRUE,            "gaussian",  "identity",
-  "sh_grazing",               TRUE,            "gaussian",  "identity",
-  "sh_mortality",             FALSE,           "count",     "log",
-  "shoot_length",             FALSE,           "gaussian",  "identity",
-  "sht_g_dw",                 TRUE,            "gaussian",  "identity",
-  "ulva_grazing",             TRUE,            "gaussian",  "identity")
+  ~response,                  ~log_transform,  ~family,     ~link,      ~re,
+  "algal_mass_g_dw",          TRUE,            "gaussian",  "identity", FALSE,
+  "change_idotea_mass_g_fw",  FALSE,           "gaussian",  "identity", FALSE,
+  "change_plant_mass_g_fw",   FALSE,           "gaussian",  "identity", FALSE,
+  "change_seahare_mass_g_fw", FALSE,           "gaussian",  "identity", FALSE,
+  "dead_shoots",              FALSE,           "count",     "log", FALSE,
+  "diatom_grazing",           TRUE,            "gaussian",  "identity", FALSE,
+  "epiphyte_cm_shoot",        TRUE,            "gaussian",  "identity", FALSE,
+  "ido_mortality",            FALSE,           "count",     "log", FALSE,
+  "rhi_elong_cm",             FALSE,           "gaussian",  "identity", TRUE,
+  "rhi_mass_g_dw",            TRUE,            "gaussian",  "identity", TRUE,
+  "sh_grazing",               TRUE,            "gaussian",  "identity", FALSE,
+  "sh_mortality",             FALSE,           "count",     "log", FALSE,
+  "shoot_length",             FALSE,           "gaussian",  "identity", TRUE,
+  #  "sht_g_dw",                 TRUE,            "gaussian",  "identity", FALSE,
+  "ulva_grazing",             TRUE,            "gaussian",  "identity", FALSE)
 
 assert_that(all(unique(d$response) %in% unique(dt$response)))
 d_long <- left_join(d, dt)
@@ -207,6 +207,7 @@ ggplot(d_long, aes(ph_scaled, value, colour = nutrients_text)) +
 Now we can iterate through the various response variables and fit a Bayesian GLM to each. For now, I am log transforming some of the response variables and fitting a linear regression, to others I am fitting a linear regression to the raw data (the change response variables), and I am fitting negative binomial GLMs to the count response variables.
 
 ```{r, message=FALSE, results='hide', cache=FALSE}
+d_long <- mutate(d_long, tank = as.numeric(as.factor(paste(ph, nutrients))))
 options(mc.cores = 1L)
 fits <- plyr::dlply(d_long, "response", function(x) {
   print(unique(x$response))
@@ -220,20 +221,28 @@ fits <- plyr::dlply(d_long, "response", function(x) {
   
   if (x$family[1] == "gaussian") {
     fam <- gaussian(link = "identity")
-    prior_aux <- student_t(df = 3, 0, 5)
+    prior_aux <- student_t(df = 3, 0, 5, autoscale = FALSE)
   }
   #  if (x$family[1] == "gamma")
   #    fam <- gaussian(link = "identity")
   # fam <- Gamma(link = "log")
   if (x$family[1] == "count") {
     fam <- neg_binomial_2(link = "log")
-    prior_aux <- student_t(df = 3, 0, 20)
+    prior_aux <- student_t(df = 3, 0, 20, autoscale = FALSE)
   }
   
-  stan_glm(f, data = x, iter = 2000, chains = 4, family = fam,
-    prior = normal(0, 2),
-    prior_intercept = normal(0, 10),
-    prior_aux = prior_aux)
+  if (unique(x$re) == FALSE) {
+    stan_glm(f, data = x, iter = 2000, chains = 4, family = fam,
+      prior = normal(0, 3, autoscale = FALSE),
+      prior_intercept = normal(0, 10, autoscale = FALSE),
+      prior_aux = prior_aux)
+  } else {
+    f <- as.formula(paste(Reduce(paste, deparse(f)), "+ (1 | tank)"))
+    stan_lmer(f, data = x, iter = 2000, chains = 4,
+      prior = normal(0, 3, autoscale = FALSE),
+      prior_intercept = normal(0, 10, autoscale = FALSE),
+      prior_aux = prior_aux, cores = 4)
+  }
 })
 saveRDS(fits, file = "data/generated/stan-fits.rds")
 ```
@@ -287,7 +296,7 @@ cis <- mutate(cis, parameter = factor(parameter, levels = c("linear", "quadratic
 cis$label <- sub("\\([a-zA-Z0-9 /%]*\\)", "", cis$label)
 cis$label <- sub(" $", "", cis$label)
 cis$label <- sub("\\\\n", "", cis$label)
-cis <- mutate(cis, label_ordered = paste(label, figure_panel, sep = " - "))
+cis <- mutate(cis, label_ordered = paste(label, toupper(figure_panel), sep = " - "))
 cis <- mutate(cis, label_ordered = reorder(label_ordered, -as.numeric(as.factor(figure_panel))))
 ```
 
@@ -302,7 +311,7 @@ g <- gather(s, parameter, sample, -response) %>%
   mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
   mutate(label = sub(" $", "", label)) %>% 
   mutate(label = sub("\\\\n", "", label)) %>% 
-  mutate(label_ordered = paste(label, figure_panel, sep = " - ")) %>% 
+  mutate(label_ordered = paste(label, toupper(figure_panel), sep = " - ")) %>% 
   mutate(label_ordered = reorder(label_ordered, -as.numeric(as.factor(figure_panel)))) %>% 
   ggplot(aes(x = label_ordered, sample)) + 
   geom_hline(yintercept = 0, lty = 2, col = "grey60") +
@@ -313,14 +322,10 @@ g <- gather(s, parameter, sample, -response) %>%
   ylim(lims) +
   theme_sleek() +
   ylab("Coefficient") + xlab("Other        Grazing trials   Eelgrass  Algal  Grazer") +
-  #   "Grazer response", 3A and B would be "Algal response", 4A-D 
-  # > would
-  # > be "Eelgrass response", 5A-C would be "Grazing trials", and not sure what
-  # > to call the S1 files since they are a mix. Could be "Other" or "Misc"?
   geom_point(data = cis, aes(x = label_ordered, y = m), col = "grey30", cex = 0.5) +
   geom_segment(data = cis, aes(x = label_ordered, y = l, xend = label_ordered, yend = u),
     lwd = 0.4, col = "grey30") +
-  geom_vline(xintercept = c(4.5, 7.5, 11.5, 13.5), col = "grey60", lty = 3)
+  geom_vline(xintercept = c(4.5, 7.5, 10.5), col = "grey60", lty = 3)
 g
 ggsave("figs/fig-2.pdf", width = 7, height = 4)
 ```
@@ -382,7 +387,7 @@ ii <<- 0
 p <- plyr::ldply(fits, function(x) {
   ii <<- ii + 1
   newdata_this_response <- as.data.frame(filter(newdata, response == names(fits)[[ii]]))
-  pp <- posterior_linpred(x, newdata = newdata_this_response)
+  pp <- posterior_linpred(x, newdata = newdata_this_response, re.form = NA)
   l <- apply(pp, 2, quantile, probs = 0.1)
   u <- apply(pp, 2, quantile, probs = 0.9)
   med <- apply(pp, 2, median)
@@ -490,8 +495,8 @@ plot_predictions <- function(figure_id, legend_position = c(.85, .96),
 }
 plot_predictions("3", legend_position = c(.75, .37))
 ggsave("figs/fig-3.pdf", width = 4.6, height = 3.8)
-plot_predictions("4", legend_position = c(.3, .1))
-ggsave("figs/fig-4.pdf", width = 4.6, height = 3.8)
+plot_predictions("4", legend_position = c(.87, .9))
+ggsave("figs/fig-4.pdf", width = 6.9, height = 2.3)
 plot_predictions("5", legend_position = c(.87, .9))
 ggsave("figs/fig-5.pdf", width = 6.9, height = 2.3)
 plot_predictions("S", whole_numbers = TRUE, legend_position = c(.25, .93))
@@ -536,105 +541,7 @@ x <- as.data.frame(as.matrix(fits[["sh_grazing"]]))[,"nutrients"]
 print(round(exp(quantile(x, probs = c(0.025, 0.5, 0.975))), 1))
 ```
 
-# Jackknife test of leverage 
-
-Let's leave out each single data point from each model fit and collect all the predictions and plot them. 
-
 ```{r}
-N <- 80
-newdata <- group_by(d_long, response) %>%
-  do({
-    data.frame(ph_scaled = predict(poly(.$ph, 2), 
-      seq(min(.$ph), max(.$ph), length.out = N))[,1],
-      ph = seq(min(.$ph), max(.$ph), length.out = N),
-      ph_scaled2 = predict(poly(.$ph, 2), seq(min(.$ph), max(.$ph), 
-        length.out = N))[,2])
-  })
-newdata <- bind_rows(data.frame(newdata, nutrients = 0), 
-  data.frame(newdata, nutrients = 1))
-
-jackknife <- function(dat) {
-  fits_jk <- plyr::ddply(dat, "response", function(x) {
-    
-    print(unique(x$response))
-    
-    newdata_this_response <- 
-      as.data.frame(filter(newdata, response == unique(x$response)))
-    
-    if (x$log_transform[1]) {
-      f <- log(value) ~ ph_scaled + ph_scaled2 + nutrients
-    } else
-      f <- value ~ ph_scaled + ph_scaled2 + nutrients
-    
-    if (unique(x$response) == "ulva_grazing") # none when no nutrients
-      f <- log(value) ~ ph_scaled + ph_scaled2
-    
-    if (x$family[1] == "gaussian") {
-      fam <- gaussian(link = "identity")
-      prior_aux <- student_t(df = 3, 0, 5)
-    }
-    if (x$family[1] == "count") {
-      fam <- neg_binomial_2(link = "log")
-      prior_aux <- student_t(df = 3, 0, 20)
-    }
-    
-    m <- stan_glm(f, data = x, iter = 1000, chains = 4, family = fam,
-      prior = normal(0, 2),
-      prior_intercept = normal(0, 10),
-      prior_aux = prior_aux)
-    
-    b <- broom::tidy(m$stanfit, rhat = TRUE, ess = TRUE)
-    assert_that(max(b$rhat) < 1.05)
-    assert_that(min(b$ess) > 100)
-    
-    pp <- posterior_linpred(m, newdata = newdata_this_response)
-    med <- apply(pp, 2, median)
-    data.frame(med, newdata_this_response)
-  })
-}
-
-d_long <- mutate(d_long, tank = as.numeric(as.factor(paste(ph, nutrients))))
-
-jk <- plyr::ldply(unique(d_long$tank), 
-  function(i) {
-    data.frame(jackknife(filter(d_long, tank != i)), tank_removed = i)})
-
-nojk <- data.frame(jackknife(d_long), tank_removed = NA)
-```
-
-And plot the jackknifed output. 
-
-```{r}
-jk2 <- inner_join(jk, unique(select(d_long, response, log_transform, family)))
-jk2 <- jk2 %>% group_by(response) %>%
-  mutate(med = ifelse(log_transform | family == "count", exp(med), med)) %>%
-  left_join(labels) %>% 
-  mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
-  mutate(label = sub(" $", "", label)) %>% 
-  mutate(label = sub("\\\\n", "", label)) %>% 
-  mutate(label_ordered = paste(figure_panel, label, sep = " - "))
-
-nojk2 <- inner_join(nojk, unique(select(d_long, response, log_transform, family)))
-nojk2 <- nojk2 %>% group_by(response) %>%
-  mutate(med = ifelse(log_transform | family == "count", exp(med), med)) %>%
-  left_join(labels) %>% 
-  mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
-  mutate(label = sub(" $", "", label)) %>% 
-  mutate(label = sub("\\\\n", "", label)) %>% 
-  mutate(label_ordered = paste(figure_panel, label, sep = " - "))
-
-filter(jk2) %>% 
-  ggplot(aes(ph, med, color = as.factor(nutrients), 
-    group = as.factor(paste(tank_removed, nutrients)))) +
-  geom_line(alpha = 0.45) +
-  facet_wrap(~label_ordered, scales = "free_y") +
-  scale_x_reverse() + theme_sleek() +
-  scale_colour_manual(values = cols) +
-  labs(colour = "Nutrients", fill = "Nutrients", y = "Response value", 
-    x = expression(Acidification~(mean~seawater~pH[T]))) +
-  guides(colour = guide_legend(override.aes = list(alpha = 1, lwd = 1))) +
-  theme(strip.text.x = element_text(size = 9)) +
-  geom_line(data = nojk2, lwd = 1.5, alpha = 1)
-
-ggsave("figs/jackknife.pdf", height = 7.5, width = 10)
+saveRDS(d_long, file = "data/generated/d_long.rds")
+saveRDS(labels, file = "data/generated/labels.rds")
 ```
