@@ -210,14 +210,14 @@ cis <- gather(s, parameter, value, -response) %>%
   mutate(label_ordered = paste(toupper(figure_panel), label, sep = " - "))
 
 ggplot(data = cis) +
-  geom_point(aes(x = rev(label_ordered), y = m), col = "grey30") +
-  geom_segment(aes(x = rev(label_ordered), y = l, xend = rev(label_ordered), yend = u)) +
+  geom_point(aes(x = label_ordered, y = m), col = "grey30") +
+  geom_segment(aes(x = label_ordered, y = l, xend = label_ordered, yend = u)) +
   coord_flip() +
   geom_hline(yintercept = 0, lty = 2) +
   theme_sleek() +
   ylab("Linear interaction coefficient (pH and nutrients)") +
   xlab("")
 
-ggsave("figs/interaction.pdf", height = 4, width = 6)
+ggsave("figs/interaction.pdf", height = 4, width = 5.5)
 ```
 
