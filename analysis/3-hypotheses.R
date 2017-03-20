@@ -19,9 +19,12 @@ d <- mutate(d, hypothesis = factor(hypothesis,
   labels = c("Hypothesis 1", "Hypothesis 2", "Hypothesis 3")))
 
 let <- unique(select(d, hypothesis, type))
-let <- mutate(let, letter = LETTERS[seq_len(n())], x = 7.8, y = 4.75)
+let <- mutate(let, letter = LETTERS[seq_len(n())], x = 7.82, y = 4.65)
 
 g <- ggplot(d, aes(pH, value)) +
+  geom_rect(data = subset(let, !letter %in% c("F", "H", "I")), aes(x = x, y = y),
+    fill = "grey95",
+    xmin = -Inf,xmax = Inf, ymin = -Inf,ymax = Inf) +
   geom_smooth(method = "lm", formula = y ~ poly(x, 2), se = FALSE, 
     colour = "grey50", lwd = 0.7) +
   facet_grid(type~hypothesis, switch = "y") +
@@ -29,16 +32,12 @@ g <- ggplot(d, aes(pH, value)) +
   ylab("") +
   xlab(expression(Acidification~(mean~seawater~pH[T]))) +
   geom_text(data = let, aes(x = x, y = y, label = letter), color = "grey40") +
-  theme(axis.ticks.y=element_blank(), axis.ticks.x = element_blank(),
+  theme(axis.ticks.y=element_blank(),
     axis.text.y = element_blank()) +
   theme(panel.spacing = unit(-0.1, "lines")) +
   theme(axis.title = element_text(size = rel(0.8))) +
   # scale_x_reverse(breaks = c(7.2, 7.7), labels = c(expression(Low~pH[T]), expression(High~pH[T]))) +
-  scale_x_reverse(breaks = c(7.2, 7.7)) +
-  geom_rect(data = subset(let, letter %in% c("F", "H", "I")), aes(x = x, y = y),
-    fill = "black",
-    xmin = -Inf,xmax = Inf, ymin = -Inf,ymax = Inf, alpha = 0.1) 
-
+  scale_x_reverse(breaks = c(7.2, 7.7))
 # print(g)
 
 ggsave("figs/fig-1.pdf", width = 4, height = 2.8)
