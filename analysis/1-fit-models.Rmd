@@ -69,7 +69,7 @@ assert_that(all(!is.na(d$label)))
 d_ulva0 <- filter(d, response == "ulva_grazing" & value == 0 & nutrients == 0)
 d <- filter(d, !(response == "ulva_grazing" & value == 0 & nutrients == 0))
 
-d <- filter(d, response != "sht_g_dw")
+d <- filter(d, response != "change_plant_mass_g_fw")
 ```
 
 We need to subtract 20 from each shoot elongation response and manipulate some units so that coefficients are roughly on the same scale:
@@ -123,18 +123,18 @@ dt <- tribble(
   ~response,                  ~log_transform,  ~family,     ~link,      ~re,
   "algal_mass_g_dw",          TRUE,            "gaussian",  "identity", FALSE,
   "change_idotea_mass_g_fw",  FALSE,           "gaussian",  "identity", FALSE,
-  "change_plant_mass_g_fw",   FALSE,           "gaussian",  "identity", FALSE,
+# "change_plant_mass_g_fw",   FALSE,           "gaussian",  "identity", FALSE,
   "change_seahare_mass_g_fw", FALSE,           "gaussian",  "identity", FALSE,
-  "dead_shoots",              FALSE,           "count",     "log", FALSE,
+  "dead_shoots",              FALSE,           "count",     "log",      FALSE,
   "diatom_grazing",           TRUE,            "gaussian",  "identity", FALSE,
   "epiphyte_cm_shoot",        TRUE,            "gaussian",  "identity", FALSE,
-  "ido_mortality",            FALSE,           "count",     "log", FALSE,
+  "ido_mortality",            FALSE,           "count",     "log",      FALSE,
   "rhi_elong_cm",             FALSE,           "gaussian",  "identity", TRUE,
   "rhi_mass_g_dw",            TRUE,            "gaussian",  "identity", TRUE,
   "sh_grazing",               TRUE,            "gaussian",  "identity", FALSE,
-  "sh_mortality",             FALSE,           "count",     "log", FALSE,
+  "sh_mortality",             FALSE,           "count",     "log",      FALSE,
   "shoot_length",             FALSE,           "gaussian",  "identity", TRUE,
-  #  "sht_g_dw",                 TRUE,            "gaussian",  "identity", FALSE,
+  "sht_g_dw",                 TRUE,            "gaussian",  "identity", FALSE,
   "ulva_grazing",             TRUE,            "gaussian",  "identity", FALSE)
 
 assert_that(all(unique(d$response) %in% unique(dt$response)))
@@ -165,7 +165,8 @@ model_table <- inner_join(dt, labels) %>% select(-response) %>%
   mutate(family = cap_vec(family)) %>%
   mutate(link = cap_vec(link)) %>%
   arrange(figure_panel) %>%
-  select(figure_panel, label, log_transform, family, link)
+  select(figure_panel, label, log_transform, family, link, re) %>% 
+  rename(`Random intercepts` = re)
 
 names(model_table) <- cap_vec(names(model_table))
 names(model_table) <- sub("_", " ", names(model_table))
@@ -288,7 +289,7 @@ cis <- gather(s, parameter, value, -response) %>%
 Now let's plot the coefficients with the credible intervals overlaid:
 
 ```{r, fig.height=4, fig.width=6.5}
-lims <- c(-5.5, 5.5)
+lims <- c(-5.2, 5.2)
 cis$l[cis$l < lims[1]] <- lims[1]
 cis$u[cis$u > lims[2]] <- lims[2]
 cis <- mutate(cis, parameter = factor(parameter, levels = c("linear", "quadratic", "nutrients"),
@@ -302,7 +303,6 @@ cis <- mutate(cis, label_ordered = reorder(label_ordered, -as.numeric(as.factor(
 
 ```{r}
 cols <- brewer.pal(6, "Blues")
-# cols <- rep("grey75", 2)
 g <- gather(s, parameter, sample, -response) %>%
   inner_join(unique(select(d_long, response, log_transform, family, label, figure_panel))) %>%
   # mutate(multiplicative = ifelse(log_transform | family == "count", TRUE, FALSE)) %>%
@@ -325,7 +325,7 @@ g <- gather(s, parameter, sample, -response) %>%
   geom_point(data = cis, aes(x = label_ordered, y = m), col = "grey30", cex = 0.5) +
   geom_segment(data = cis, aes(x = label_ordered, y = l, xend = label_ordered, yend = u),
     lwd = 0.4, col = "grey30") +
-  geom_vline(xintercept = c(4.5, 7.5, 10.5), col = "grey60", lty = 3)
+  geom_vline(xintercept = c(3.5, 6.5, 10.5), col = "grey60", lty = 3)
 g
 ggsave("figs/fig-2.pdf", width = 7, height = 4)
 ```
@@ -363,26 +363,6 @@ newdata <- bind_rows(data.frame(newdata, nutrients = 0), data.frame(newdata, nut
 Now make the predictions:
 
 ```{r}
-# ii <<- 0
-# p <- plyr::ldply(fits, function(x) {
-#   ii <<- ii + 1
-#   mm <- as.matrix(x)
-#   b <- as_data_frame(mm) %>% rename(
-#     b0 = `(Intercept)`,
-#     b1 = `ph_scaled`,
-#     b2 = `ph_scaled2`)
-#   newdata_this_response <- as.data.frame(filter(newdata, response == names(fits)[[ii]]))
-#   pp <- apply(newdata_this_response, 1, function(y) {
-#     b$b0 + b$b1 * as.numeric(y[["ph_scaled"]]) +
-#       b$b2 * as.numeric(y[["ph_scaled2"]]) +
-#       b$nutrients * as.numeric(y[["nutrients"]])
-#   })
-#   l <- apply(pp, 2, quantile, probs = 0.1)
-#   u <- apply(pp, 2, quantile, probs = 0.9)
-#   med <- apply(pp, 2, quantile, probs = 0.5)
-#   data.frame(l, med, u, newdata_this_response)
-# }) %>% as_data_frame()
-
 ii <<- 0
 p <- plyr::ldply(fits, function(x) {
   ii <<- ii + 1
@@ -414,8 +394,6 @@ d_long_plot <- d_long %>% group_by(response, nutrients, ph) %>%
   left_join(labels)
 
 d_long_plot <- bind_rows(d_long_plot, d_ulva0) # for plotting only
-
-# d_long_plot <- d_long
 
 cols <- c(brewer.pal(4, "Greys")[[3]], brewer.pal(4, "Blues")[[3]])
 g <- ggplot(d_long_plot, aes(ph, value, colour = as.factor(nutrients))) + 
@@ -452,7 +430,6 @@ cols <- c(brewer.pal(4, "Greys")[[3]], brewer.pal(4, "Blues")[[3]])
 
 plot_predictions <- function(figure_id, legend_position = c(.85, .96), 
   whole_numbers = FALSE) {
-  
   
   dat <- filter(d_long_plot, substr(figure_panel, 0, 1) == figure_id)
   pp_data <-filter(pp, substr(figure_panel, 0, 1) == figure_id)
@@ -495,12 +472,12 @@ plot_predictions <- function(figure_id, legend_position = c(.85, .96),
 }
 plot_predictions("3", legend_position = c(.75, .37))
 ggsave("figs/fig-3.pdf", width = 4.6, height = 3.8)
-plot_predictions("4", legend_position = c(.87, .9))
-ggsave("figs/fig-4.pdf", width = 6.9, height = 2.3)
+plot_predictions("4", legend_position = c(.865, .7))
+ggsave("figs/fig-4.pdf", width = 4.6, height = 3.8)
 plot_predictions("5", legend_position = c(.87, .9))
 ggsave("figs/fig-5.pdf", width = 6.9, height = 2.3)
-plot_predictions("S", whole_numbers = TRUE, legend_position = c(.25, .93))
-ggsave("figs/fig-S1.pdf", width = 4.6, height = 3.8)
+plot_predictions("S", whole_numbers = TRUE, legend_position = c(.14, .85))
+ggsave("figs/fig-S1.pdf", width = 6.9, height = 2.3)
 ```
 
 Let's derive some values for the paper. 
