@@ -1,5 +1,6 @@
 ---
 output:
+  word_document: default
   html_document: default
 ---
 
@@ -165,6 +166,7 @@ model_table <- inner_join(dt, labels) %>% select(-response) %>%
   mutate(family = cap_vec(family)) %>%
   mutate(link = cap_vec(link)) %>%
   arrange(figure_panel) %>%
+  mutate(figure_panel = toupper(figure_panel)) %>% 
   select(figure_panel, label, log_transform, family, link, re) %>% 
   rename(`Random intercepts` = re)
 
@@ -210,42 +212,46 @@ Now we can iterate through the various response variables and fit a Bayesian GLM
 ```{r, message=FALSE, results='hide', cache=FALSE}
 d_long <- mutate(d_long, tank = as.numeric(as.factor(paste(ph, nutrients))))
 options(mc.cores = 1L)
-fits <- plyr::dlply(d_long, "response", function(x) {
-  print(unique(x$response))
-  if (x$log_transform[1]) {
-    f <- log(value) ~ ph_scaled + ph_scaled2 + nutrients
-  } else
-    f <- value ~ ph_scaled + ph_scaled2 + nutrients
-  
-  if (unique(x$response) == "ulva_grazing") # none when no nutrients
-    f <- log(value) ~ ph_scaled + ph_scaled2
-  
-  if (x$family[1] == "gaussian") {
-    fam <- gaussian(link = "identity")
-    prior_aux <- student_t(df = 3, 0, 5, autoscale = FALSE)
-  }
-  #  if (x$family[1] == "gamma")
-  #    fam <- gaussian(link = "identity")
-  # fam <- Gamma(link = "log")
-  if (x$family[1] == "count") {
-    fam <- neg_binomial_2(link = "log")
-    prior_aux <- student_t(df = 3, 0, 20, autoscale = FALSE)
-  }
-  
-  if (unique(x$re) == FALSE) {
-    stan_glm(f, data = x, iter = 2000, chains = 4, family = fam,
-      prior = normal(0, 3, autoscale = FALSE),
-      prior_intercept = normal(0, 10, autoscale = FALSE),
-      prior_aux = prior_aux)
-  } else {
-    f <- as.formula(paste(Reduce(paste, deparse(f)), "+ (1 | tank)"))
-    stan_lmer(f, data = x, iter = 2000, chains = 4,
-      prior = normal(0, 3, autoscale = FALSE),
-      prior_intercept = normal(0, 10, autoscale = FALSE),
-      prior_aux = prior_aux, cores = 4)
-  }
-})
-saveRDS(fits, file = "data/generated/stan-fits.rds")
+if (!file.exists("data/generated/stan-fits.rds")) {
+  fits <- plyr::dlply(d_long, "response", function(x) {
+    print(unique(x$response))
+    if (x$log_transform[1]) {
+      f <- log(value) ~ ph_scaled + ph_scaled2 + nutrients
+    } else
+      f <- value ~ ph_scaled + ph_scaled2 + nutrients
+    
+    if (unique(x$response) == "ulva_grazing") # none when no nutrients
+      f <- log(value) ~ ph_scaled + ph_scaled2
+    
+    if (x$family[1] == "gaussian") {
+      fam <- gaussian(link = "identity")
+      prior_aux <- student_t(df = 3, 0, 5, autoscale = FALSE)
+    }
+    #  if (x$family[1] == "gamma")
+    #    fam <- gaussian(link = "identity")
+    # fam <- Gamma(link = "log")
+    if (x$family[1] == "count") {
+      fam <- neg_binomial_2(link = "log")
+      prior_aux <- student_t(df = 3, 0, 20, autoscale = FALSE)
+    }
+    
+    if (unique(x$re) == FALSE) {
+      stan_glm(f, data = x, iter = 2000, chains = 4, family = fam,
+        prior = normal(0, 3, autoscale = FALSE),
+        prior_intercept = normal(0, 10, autoscale = FALSE),
+        prior_aux = prior_aux)
+    } else {
+      f <- as.formula(paste(Reduce(paste, deparse(f)), "+ (1 | tank)"))
+      stan_lmer(f, data = x, iter = 2000, chains = 4,
+        prior = normal(0, 3, autoscale = FALSE),
+        prior_intercept = normal(0, 10, autoscale = FALSE),
+        prior_aux = prior_aux, cores = 4)
+    }
+  })
+  saveRDS(fits, file = "data/generated/stan-fits.rds")
+} else {
+  fits <- readRDS("data/generated/stan-fits.rds")
+}
 ```
 
 Let's check each of the models to make sure they converged:
@@ -343,6 +349,7 @@ gather(s, coefficient, value, -response) %>%
   mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
   mutate(label = sub(" $", "", label)) %>% 
   mutate(label = sub("\\\\n", "", label)) %>% 
+  mutate(figure_panel = toupper(figure_panel)) %>% 
   select(figure_panel, label, coefficient, p_less_0, p_above_0) %>%
   knitr::kable()
 ```
@@ -477,7 +484,7 @@ ggsave("figs/fig-4.pdf", width = 4.6, height = 3.8)
 plot_predictions("5", legend_position = c(.87, .9))
 ggsave("figs/fig-5.pdf", width = 6.9, height = 2.3)
 plot_predictions("S", whole_numbers = TRUE, legend_position = c(.14, .85))
-ggsave("figs/fig-S1.pdf", width = 6.9, height = 2.3)
+ggsave("figs/fig-S3.pdf", width = 6.9, height = 2.3)
 ```
 
 Let's derive some values for the paper. 
@@ -491,7 +498,7 @@ get_value <- function(response_value, ph_value) {
   xx[[1]]
 }
 
-message("The flight shoot length was X% longer at pH 7.45 than 7.86")
+message("Epiphyte loading was X% longer at pH 7.45 than 7.86")
 (x1 <- get_value("epiphyte_cm_shoot", 7.45))
 (x2 <- get_value("epiphyte_cm_shoot", 7.86))
 print(round(100 * (x1 / x2 - 1), 0))
@@ -509,7 +516,7 @@ message("Elevated nutrient conditions were associated with X changes in mean sea
 x <- as.data.frame(as.matrix(fits[["change_seahare_mass_g_fw"]]))[,"nutrients"]
 print(round((quantile(x, probs = c(0.025, 0.5, 0.975))), 1))
 
-message("Should mortality was x-fold higher when nutrients were added:")
+message("Shoot mortality was x-fold higher when nutrients were added:")
 x <- as.data.frame(as.matrix(fits[["dead_shoots"]]))[,"nutrients"]
 print(round(exp(quantile(x, probs = c(0.025, 0.5, 0.975))), 1))
 

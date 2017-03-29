@@ -11,7 +11,7 @@ rhi_mass_g_dw,Rhizome mass\n(g DW/cm rhizome),4d,could be using the wrong column
 sh_grazing,Algal epiphyte consumed\n(mg DW/g DW seahare/hr),5a,
 ulva_grazing,Ulva recruitment (% cover),5b,need to add analysis/figure
 diatom_grazing,Diatom recruitment (% cover),5c,
-sh_mortality,Seahare mortality,S1a,
-ido_mortality,Idotea mortality,S1b,
+sh_mortality,Seahare mortality,S3a,
+ido_mortality,Idotea mortality,S3b,
 change_plant_mass_g_fw,Change in eelgrass mass\n(10g FW),,need to add analysis/figure
-dead_shoots,Shoot mortality,S1c,
+dead_shoots,Shoot mortality,S3c,

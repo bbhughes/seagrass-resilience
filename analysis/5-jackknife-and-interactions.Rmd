@@ -115,7 +115,7 @@ jk2 <- jk2 %>% group_by(response) %>%
   mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
   mutate(label = sub(" $", "", label)) %>% 
   mutate(label = sub("\\\\n", "", label)) %>% 
-  mutate(label_ordered = paste(figure_panel, label, sep = " - "))
+  mutate(label_ordered = paste(toupper(figure_panel), label, sep = " - "))
 
 nojk2 <- inner_join(nojk, unique(select(d_long, response, log_transform, family)))
 nojk2 <- nojk2 %>% group_by(response) %>%
@@ -124,7 +124,7 @@ nojk2 <- nojk2 %>% group_by(response) %>%
   mutate(label = sub("\\([a-zA-Z0-9 /%]*\\)", "", label)) %>% 
   mutate(label = sub(" $", "", label)) %>% 
   mutate(label = sub("\\\\n", "", label)) %>% 
-  mutate(label_ordered = paste(figure_panel, label, sep = " - "))
+  mutate(label_ordered = paste(toupper(figure_panel), label, sep = " - "))
 
 cols <- c(brewer.pal(4, "Greys")[[3]], brewer.pal(4, "Blues")[[3]])
 filter(jk2) %>% 
