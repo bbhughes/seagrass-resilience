@@ -1,0 +1,59 @@
+How would the hypothesized shift in the quadratic effect appear in our
+regression modeling results considering that we are not letting the quadratic
+term itself interact with nutrient levels?
+
+Let's simulate some data that approximately matches the shape in the hypothesis
+figure.
+
+```{r}
+x <- seq(0, 10, length.out = 100)
+y1 <- (x - 5) ^ 2 * (-5)
+y2 <- (x - 3) * 16 + (x - 3) ^ 2 * (-8) - 8
+plot(x, y1, type = "l", lty = 1)
+lines(x, y2, lty = 2)
+```
+
+Let's combine that simulated data into a data frame that we can fit a model to.
+We will also add a little bit of noise to the response data so we can fit
+a model to it.
+
+```{r}
+set.seed(1)
+noise <- rnorm(length(x), 0, 0.8)
+x_centered <- x - mean(x)
+dat <- data.frame(x = c(x_centered, x_centered), y = c(y1 + noise, y2 + noise),
+  nutrients = c(rep(FALSE, length(y1)), rep(TRUE, length(y2))))
+```
+
+Let's fit separate models to these two curves. This lets the linear and
+quadratic effects be estimated separately. But note that the second curve is
+not centered on x = 0 as the first curve is.
+
+```{r}
+m1 <- lm(I(y1 + noise) ~ poly(x_centered, 2))
+m2 <- lm(I(y2 + noise) ~ poly(x_centered, 2))
+
+par(mfrow = c(2, 1))
+arm::coefplot(m1, mar = c(2, 10, 2, 2), xlim = c(-700, 0))
+arm::coefplot(m2, mar = c(2, 10, 2, 2), xlim = c(-700, 0))
+```
+
+Both the linear and quadratic effects are affected but the linear coefficient
+is affected more strongly. (The coefficients ending in 2 are the quadratic
+coefficients and the ones ending in 1 are the linear coefficients.)
+
+Now let's fit a model that resembles the ones fit in the paper. We are adding
+a factor coefficient that can shift the effect up or down when nutrients are
+added. We are also adding a interaction with the linear effect. We are
+not adding an interaction with the quadratic effect.
+
+```{r}
+par(mfrow = c(1, 1))
+m <- lm(y ~ poly(x, 2)[,1] + poly(x, 2)[,2] + nutrients +
+  nutrients * poly(x, 2)[,1], data = dat)
+arm::coefplot(m, mar = c(2, 10, 2, 2))
+```
+
+So now we are forcing them to share a quadratic effect. But in this case we
+would be able to detect the effect according to an interaction between the
+linear effect and the nutrient variable.
