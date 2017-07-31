@@ -1,3 +1,3 @@
-# Analysis for 'Unexpected resilience of a seagrass system exposed to multiple stressors'
+# Analysis for 'Unexpected resilience of a seagrass system exposed to global stressors'
 
-This repository contains data and code for Hughes et al. 'Unexpected resilience of a seagrass system exposed to multiple stressors'.
+This repository contains data and code for Hughes et al. 2017. 'Unexpected resilience of a seagrass system exposed to global stressors'. Global Change Biology.
